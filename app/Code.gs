@@ -1130,14 +1130,6 @@ function adminSetTraining(token, consultantId, trainingId, hours, note) {
   return getConsultantDetail(token, consultantId);
 }
 
-function adminSaveTraining(token, t) {
-  var s = session_(token, 'admin');
-  var d = clean_(t, ['교육명', '일자', '시간', '비고']);
-  req_(d, ['교육명']);
-  if (t.ID) update_('교육', t.ID, d, s.email); else insert_('교육', d, s.email);
-  return all_('교육').map(strip_);
-}
-
 function adminSaveSchedule(token, row, applyToProjects) {
   var s = session_(token, 'admin');
   var d = clean_(row, SCHEMA['차수일정']);

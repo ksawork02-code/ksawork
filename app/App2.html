@@ -448,33 +448,4 @@ function drawSmsBox() {
     $('#smsTest').onclick = function () { run('발송 중...', 'adminSmsTest', tok(), $('#smsTo').value).then(function () { toast('테스트 문자를 보냈습니다.'); }); };
   });
 }
-
-/* ---------- 사업장 목록 확장: 서류 열·필터, 만족도 설문 일괄 발송 ---------- */
-PROJ_COLS.splice(PROJ_COLS.length - 1, 0, { k: '_서류', l: '서류', f: function (p) { var s = p._서류 || {}; return s.전체 ? '<span class="badge ' + (s.확인 === s.전체 ? 'b-ok' : s.누락 + s.반려 ? 'b-warn' : 'b-info') + '">' + (s.확인 || 0) + '/' + s.전체 + '</span>' : ''; }, s: function (p) { return (p._서류 || {}).확인 || 0; }, x: function (p) { var s = p._서류 || {}; return (s.확인 || 0) + '/' + (s.전체 || 0); } });
-PROJ_COLS.splice(PROJ_COLS.length - 1, 0, { k: '_만족도', l: '만족도', f: function (p) { return p._만족도 ? '<b>' + p._만족도.평균 + '</b>' : ''; }, s: function (p) { return p._만족도 ? p._만족도.평균 : 0; }, x: function (p) { return p._만족도 ? p._만족도.평균 : ''; } });
-var _filterProjects0 = filterProjects;
-filterProjects = function () {
-  var rows = _filterProjects0(), f = S.f.proj || {};
-  if (f.서류 === '누락·반려') rows = rows.filter(function (p) { var s = p._서류 || {}; return (s.누락 || 0) + (s.반려 || 0) > 0; });
-  if (f.서류 === '확인 대기') rows = rows.filter(function (p) { return ((p._서류 || {}).대기 || 0) > 0; });
-  if (f.서류 === '완료') rows = rows.filter(function (p) { var s = p._서류 || {}; return s.전체 && s.확인 === s.전체; });
-  return rows;
-};
-var _renderProjects0 = renderProjects;
-renderProjects = function () {
-  _renderProjects0();
-  var f = S.f.proj, bar = $('.filters');
-  var sel = document.createElement('select'); sel.innerHTML = opts(['누락·반려', '확인 대기', '완료'], f.서류, '서류 전체'); sel.style.width = 'auto';
-  sel.onchange = function () { f.서류 = sel.value; drawProjects(); };
-  bar.insertBefore(sel, $('[data-f=q]', bar));
-  var b = document.createElement('button'); b.className = 'btn sm'; b.textContent = '만족도 설문 발송';
-  b.onclick = function () {
-    var rows = filterProjects().filter(function (p) { return p['최종검수'] === '검수완료' && !p._만족도; });
-    if (!rows.length) return toast('현재 목록에 최종보고 검수완료 + 미응답 사업장이 없습니다.', true);
-    if (!confirm('현재 목록 중 최종보고 검수완료 사업장 ' + rows.length + '곳 담당자에게 설문을 보낼까요? (이미 보낸 곳은 건너뜀)')) return;
-    run('발송 중...', 'adminSendSurvey', tok(), rows.map(function (p) { return p.ID; }), false).then(function (r) { toast(r.sent + '곳 발송' + (r.skipped.length ? ' · 건너뜀 ' + r.skipped.length : '')); });
-  };
-  bar.insertBefore(b, $('#xls', bar));
-  drawProjects();
-};
 </script>

@@ -12,7 +12,7 @@
 | `app/Features.gs` | 세부 기능: 일정·서류·검수 체크리스트·만족도·교육·정산·추천·월간실적·공지·문의·진행조회·문자(솔라피) |
 | `app/Sync.gs` | Lark → 앱 동기화 엔진(최초 이관 겸용). 필드 매핑 `map*_`, 스냅샷 시트 `_Lark동기화` |
 | `app/Migrate.gs` | Lark API 호출, 값 변환, 첨부파일 이관(5분 단위 자동 이어하기) |
-| `app/Index.html` `App.html` `App2.html` | 로그인 후 SPA (App=기본, App2=세부 기능, 일부 함수는 App2가 감싸서 확장) |
+| `app/Index.html` `App.html` `App2.html` | 로그인 후 SPA (App=기본 화면·목록, App2=세부 기능 화면. App2는 App의 함수를 덮어쓰지 않는다) |
 | `app/Form.html` | 로그인 없는 공개 페이지: `?page=apply|pre|consultant|status|survey` |
 | `app/Common.html` `Styles.html` | 공통 JS 유틸(`call`, `run`, `readFiles`, `extError`…)과 CSS |
 | `netlify/` | 웹앱을 iframe으로 감싸는 짧은 주소 사이트(`/apply` 등). `config.js`의 `WEBAPP_URL`만 설정 |

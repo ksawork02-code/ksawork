@@ -34,6 +34,13 @@ const rpc = (fn, ...args) => fetch(B + '/rpc', { method: 'POST', body: JSON.stri
   await A.evaluate(() => { document.querySelector('#smsBox').scrollIntoView(); window.scrollBy(0, -70); }); await shot(A, 'a-sms');
   // 사업장 상세 새 탭
   await tab(A, 'projects'); check('서류·만족도 열', (await A.$$eval('table.t th', t => t.map(x => x.textContent))).some(t => t.startsWith('서류')));
+  {
+    const cnt = async () => parseInt(await A.textContent('#cnt'), 10);
+    const all = await cnt(), n = {};
+    for (const o of ['누락·반려', '확인 대기', '완료']) { await A.selectOption('[data-f=서류]', o); await A.waitForTimeout(200); n[o] = await cnt(); }
+    await A.selectOption('[data-f=서류]', ''); await A.waitForTimeout(200);
+    check('서류 필터·설문 일괄 발송 버튼 (' + JSON.stringify(n) + ' / ' + all + ')', Object.values(n).some(x => x < all) && await cnt() === all && await A.locator('#svBulk').count() === 1);
+  }
   const visits = await rpc('all_', '일정'); const pid = visits[0]['사업장ID']; const P = (await rpc('all_', '사업장')).find(p => p.ID === pid);
   await A.fill('[data-f=q]', P['사업장명']); await A.waitForTimeout(300); await A.click('table.t tbody tr'); await A.waitForSelector('#subBody');
   for (const s of ['visits', 'docs', 'reports', 'survey']) { await A.click(`[data-sub=${s}]`); await A.waitForTimeout(400); await shot(A, 'a-proj-' + s); }
