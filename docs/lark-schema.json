@@ -1,0 +1,2423 @@
+[
+ {
+  "table": {
+   "name": "기업 컨설팅 신청",
+   "revision": 3550,
+   "table_id": "tblsbBKo46rQtpLM"
+  },
+  "fields": [
+   {
+    "field_id": "fldQPKCpj4",
+    "field_name": "사업장명",
+    "is_extend": false,
+    "is_primary": true,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldFIWRmHr",
+    "field_name": "연락 담당자",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldJtkwVOJ",
+    "field_name": "특이사항",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldFAZ9c3c",
+    "field_name": "차수조회",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "filter_info": {
+      "conditions": {
+       "children": [
+        {
+         "field_id": "fldVmyzOd8",
+         "field_type": 1,
+         "operator": "is",
+         "value": null
+        }
+       ],
+       "conjunction": "and"
+      },
+      "target_table": "tbl9IrX9vRy3SunG"
+     },
+     "formatter": "",
+     "formula": "bitable::$table[tbl9IrX9vRy3SunG].FILTER(CurrentValue.$column[fldVmyzOd8]=bitable::$table[tblsbBKo46rQtpLM].$field[fldQPKCpj4]).$column[fldj1govSK].LISTCOMBINE()",
+     "roll_up": 0,
+     "target_field": "fldj1govSK"
+    },
+    "type": 19,
+    "ui_type": "Lookup"
+   },
+   {
+    "field_id": "fldmPZp7Sl",
+    "field_name": "진행상황조회",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "filter_info": {
+      "conditions": {
+       "children": [
+        {
+         "field_id": "fldVmyzOd8",
+         "field_type": 1,
+         "operator": "is",
+         "value": null
+        }
+       ],
+       "conjunction": "and"
+      },
+      "target_table": "tbl9IrX9vRy3SunG"
+     },
+     "formatter": "",
+     "formula": "bitable::$table[tbl9IrX9vRy3SunG].FILTER(CurrentValue.$column[fldVmyzOd8]=bitable::$table[tblsbBKo46rQtpLM].$field[fldQPKCpj4]).$column[fldqQQgIBt].LISTCOMBINE()",
+     "roll_up": 0,
+     "target_field": "fldqQQgIBt"
+    },
+    "type": 19,
+    "ui_type": "Lookup"
+   },
+   {
+    "field_id": "fldCwhVesQ",
+    "field_name": "승인여부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 40,
+       "id": "optRR8Yhnq",
+       "name": "확정"
+      },
+      {
+       "color": 33,
+       "id": "opt5bPN0RU",
+       "name": "반려"
+      },
+      {
+       "color": 13,
+       "id": "optroztv9E",
+       "name": "대기"
+      },
+      {
+       "color": 43,
+       "id": "optmm1vIIi",
+       "name": "취소"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "field_id": "fldbtmZWoM",
+    "field_name": "담당 컨설턴트",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldxZVE94m",
+    "field_name": "컨설턴트계정",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": true
+    },
+    "type": 11,
+    "ui_type": "User"
+   },
+   {
+    "description": "***지역본부 위원님들 꼭 참조***",
+    "field_id": "fldx60rq3e",
+    "field_name": "지역본부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldK1oZwAi",
+    "field_name": "착수메일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": true,
+     "table_id": "tblltQnU8Dfj39AZ",
+     "table_name": "컨설턴트 명단"
+    },
+    "type": 18,
+    "ui_type": "SingleLink"
+   },
+   {
+    "field_id": "fldmGgKWcE",
+    "field_name": "연락여부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 3,
+       "id": "optu9IYbUf",
+       "name": "1 컨설턴트 연락완료"
+      },
+      {
+       "color": 15,
+       "id": "optn6scoN4",
+       "name": "2 사업장 연락완료"
+      },
+      {
+       "color": 33,
+       "id": "optZB1gHrP",
+       "name": "미확인"
+      },
+      {
+       "color": 0,
+       "id": "optfVbV4zw",
+       "name": "1.5 컨설 확인필요"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "field_id": "fldueClJGJ",
+    "field_name": "생성 날짜",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "date_formatter": "yyyy-MM-dd HH:mm"
+    },
+    "type": 1001,
+    "ui_type": "CreatedTime"
+   },
+   {
+    "field_id": "fld1u3mmfO",
+    "field_name": "사업자등록번호",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldUcS2ISO",
+    "field_name": "사업장 지역",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "",
+     "formula_expression": "IFS(LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],2)=\"충청\",IF(LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],4)=\"충청남도\",\"충남\",IF(LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],4)=\"충청북도\",\"충북\",\"충청\")),LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],2)=\"전라\",IF(LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],4)=\"전라남도\",\"전남\",IF(LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],4)=\"전라북도\",\"전북\",\"전라\")),LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],2)=\"경상\",IF(LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],4)=\"경상남도\",\"경남\",IF(LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],4)=\"경상북도\",\"경북\",\"경상\")),TRUE(),LEFT(bitable::$table[tblsbBKo46rQtpLM].$field[fldUVhpibQ],2))",
+     "type": {
+      "data_type": 1
+     }
+    },
+    "type": 20,
+    "ui_type": "Formula"
+   },
+   {
+    "field_id": "fldUVhpibQ",
+    "field_name": "사업장 주소",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldJJOnscT",
+    "field_name": "인원",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "0"
+    },
+    "type": 2,
+    "ui_type": "Number"
+   },
+   {
+    "field_id": "fldaVVSVFB",
+    "field_name": "업태",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldtLjgY0L",
+    "field_name": "종목",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldiTwpJxe",
+    "field_name": "부서명",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldNJDLdpC",
+    "field_name": "담당자명",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldWldwj4n",
+    "field_name": "담당자 직책",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldri0LLJL",
+    "field_name": "담당자 연락처",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 13,
+    "ui_type": "Phone"
+   },
+   {
+    "field_id": "fld5gBkVW9",
+    "field_name": "담당자 이메일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Email"
+   },
+   {
+    "field_id": "fld8pkFBLB",
+    "field_name": "변동사항 있음⭕",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 7,
+    "ui_type": "Checkbox"
+   },
+   {
+    "field_id": "fldst0IJAA",
+    "field_name": "변동사항 없음❌",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 7,
+    "ui_type": "Checkbox"
+   },
+   {
+    "field_id": "fldFFHiEw8",
+    "field_name": "신청서",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 17,
+    "ui_type": "Attachment"
+   },
+   {
+    "field_id": "fldV5xAp1f",
+    "field_name": "사업자등록증",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 17,
+    "ui_type": "Attachment"
+   },
+   {
+    "field_id": "fldjwmHzec",
+    "field_name": "중소기업 확인서",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 17,
+    "ui_type": "Attachment"
+   },
+   {
+    "field_id": "fldi128gL3",
+    "field_name": "비고",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "description": "사업장관리시트에 사업장명 추가하는 버튼\n*사업장명만 추가 컨설턴트 인원설정 필수",
+    "field_id": "fldem3PXLj",
+    "field_name": "사업장관리추가",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 3001,
+    "ui_type": "Button"
+   },
+   {
+    "field_id": "fld5m7oHaf",
+    "field_name": "생성한 사람",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1003,
+    "ui_type": "CreatedUser"
+   },
+   {
+    "field_id": "fldKYlLX1B",
+    "field_name": "상위 항목 2",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": false,
+     "table_id": "tblsbBKo46rQtpLM",
+     "table_name": "기업 컨설팅 신청"
+    },
+    "type": 18,
+    "ui_type": "SingleLink"
+   },
+   {
+    "field_id": "fldMYCtU2T",
+    "field_name": "컨설턴트정보조회",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "filter_info": {
+      "conditions": {
+       "children": [
+        {
+         "field_id": "flddd1MxWG",
+         "field_type": 1,
+         "operator": "is",
+         "value": null
+        }
+       ],
+       "conjunction": "and"
+      },
+      "target_table": "tblltQnU8Dfj39AZ"
+     },
+     "formatter": "",
+     "formula": "bitable::$table[tblltQnU8Dfj39AZ].FILTER(CurrentValue.$column[flddd1MxWG]=bitable::$table[tblsbBKo46rQtpLM].$field[fldbtmZWoM]).$column[fldOLLL4a1].LISTCOMBINE()",
+     "roll_up": 0,
+     "target_field": "fldOLLL4a1"
+    },
+    "type": 19,
+    "ui_type": "Lookup"
+   }
+  ],
+  "views": [
+   {
+    "view_id": "vewigvW3Ez",
+    "view_name": "신청 사업장 DB",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vew2tevPb6",
+    "view_name": "신청 사업장 DB 복사",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewUZzEt9I",
+    "view_name": "2026년 산업일자리전환 컨설팅 신청",
+    "view_public_level": "Public",
+    "view_type": "form",
+    "form": {
+     "form": {
+      "description": "한국표준협회 산업일자리전환 전담기관 일터혁신센터 내부에서만 공유되는 폼입니다. 자세한 사항은 ksawork02@ksa.or.kr 으로 문의 주시길 바랍니다.",
+      "name": "2026년 산업일자리전환 컨설팅 신청",
+      "shared": false,
+      "shared_limit": null,
+      "shared_url": null,
+      "submit_limit_once": false
+     }
+    },
+    "form_fields": [
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldQPKCpj4",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "사업장명",
+      "visible": true
+     },
+     {
+      "description": "없을 경우 공란으로 제출",
+      "field_id": "fldbtmZWoM",
+      "required": false,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "없을 경우 공란으로 제출"
+       }
+      ],
+      "title": "담당 컨설턴트",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldCwhVesQ",
+      "required": true,
+      "rich_description": null,
+      "title": "승인여부",
+      "visible": false
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fld1u3mmfO",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "사업자등록번호",
+      "visible": true
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldaVVSVFB",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "업태",
+      "visible": true
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldtLjgY0L",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "종목",
+      "visible": true
+     },
+     {
+      "description": "건강보험 가입자 명부 상 인원 수 기준",
+      "field_id": "fldJJOnscT",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "건강보험 가입자 명부 상 인원 수 기준"
+       }
+      ],
+      "title": "근로자 수",
+      "visible": true
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldUVhpibQ",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "사업장 주소",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldiTwpJxe",
+      "required": true,
+      "rich_description": null,
+      "title": "담당부서",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldNJDLdpC",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자명",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldWldwj4n",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자 직책",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fld5gBkVW9",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자 이메일",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldri0LLJL",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자 연락처",
+      "visible": true
+     },
+     {
+      "description": "파일명: 기업명_2026년 산업일자리전환컨설팅 신청서 및 체크리스트.hwp",
+      "field_id": "fldFFHiEw8",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "파일명: 기업명_2026년 산업일자리전환컨설팅 신청서 및 체크리스트.hwp"
+       }
+      ],
+      "title": "신청서 및 체크리스트 제출",
+      "visible": true
+     },
+     {
+      "description": "파일명: 기업명_사업자등록증.pdf",
+      "field_id": "fldV5xAp1f",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "파일명: 기업명_사업자등록증.pdf"
+       }
+      ],
+      "title": "사업자등록증 제출",
+      "visible": true
+     },
+     {
+      "description": "파일명: 기업명_중소기업확인서.pdf\n",
+      "field_id": "fldjwmHzec",
+      "required": false,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "파일명: 기업명_중소기업확인서.pdf\n"
+       },
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "* 중소기업에 해당하는 경우 유효기간 이내 확인서 필수 제출"
+       }
+      ],
+      "title": "중소기업 확인서 제출",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldJtkwVOJ",
+      "required": false,
+      "rich_description": null,
+      "title": "특이사항",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldmGgKWcE",
+      "required": false,
+      "rich_description": null,
+      "title": "연락여부",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldK1oZwAi",
+      "required": false,
+      "rich_description": null,
+      "title": "착수메일",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldFIWRmHr",
+      "required": false,
+      "rich_description": null,
+      "title": "연락 담당자",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldx60rq3e",
+      "required": false,
+      "rich_description": null,
+      "title": "지역본부",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldi128gL3",
+      "required": false,
+      "rich_description": null,
+      "title": "비고",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldKYlLX1B",
+      "required": false,
+      "rich_description": null,
+      "title": "상위 항목 2",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldxZVE94m",
+      "required": false,
+      "rich_description": null,
+      "title": "컨설턴트계정",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fld8pkFBLB",
+      "required": false,
+      "rich_description": null,
+      "title": "변동사항 있음⭕",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldst0IJAA",
+      "required": false,
+      "rich_description": null,
+      "title": "변동사항 없음❌",
+      "visible": false
+     }
+    ]
+   },
+   {
+    "view_id": "vewzJg3ozr",
+    "view_name": "진행상황별",
+    "view_public_level": "Public",
+    "view_type": "kanban"
+   },
+   {
+    "view_id": "vew7ubESLK",
+    "view_name": "그리드 3",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewZFOY9vW",
+    "view_name": "그리드 4",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   }
+  ]
+ },
+ {
+  "table": {
+   "name": "사업장 관리",
+   "revision": 4020,
+   "table_id": "tbl9IrX9vRy3SunG"
+  },
+  "fields": [
+   {
+    "field_id": "fldVmyzOd8",
+    "field_name": "사업장명",
+    "is_extend": false,
+    "is_primary": true,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "description": "사업장 담당자 변동 시 수정 바랍니다.",
+    "field_id": "fldoZ7uTo1",
+    "field_name": "사업장 담당자 정보확인",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": false,
+     "table_id": "tblsbBKo46rQtpLM",
+     "table_name": "기업 컨설팅 신청"
+    },
+    "type": 18,
+    "ui_type": "SingleLink"
+   },
+   {
+    "description": "컨설턴트명단 연결, 이름 클릭시 컨설턴트 연락처 확인 가능\n*수동설정, 중복선택 가능",
+    "field_id": "fldPBi4HP5",
+    "field_name": "컨설턴트",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": true,
+     "table_id": "tblltQnU8Dfj39AZ",
+     "table_name": "컨설턴트 명단"
+    },
+    "type": 18,
+    "ui_type": "SingleLink"
+   },
+   {
+    "description": "작성 확인 후 업데이트 되어 시차가 발생하는 점 참고 바랍니다.",
+    "field_id": "fldPkX6cjF",
+    "field_name": "수행일지 작성회차",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldRvGf65r",
+    "field_name": "수행일지 바로가기",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 3001,
+    "ui_type": "Button"
+   },
+   {
+    "field_id": "fldj1govSK",
+    "field_name": "차수",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 0,
+       "id": "optzSahDc2",
+       "name": "1차"
+      },
+      {
+       "color": 1,
+       "id": "optKTlQVAe",
+       "name": "2차"
+      },
+      {
+       "color": 2,
+       "id": "opt0Q4Gs3a",
+       "name": "3차"
+      },
+      {
+       "color": 3,
+       "id": "optnkL4Xvv",
+       "name": "4차"
+      },
+      {
+       "color": 4,
+       "id": "opt62TTHii",
+       "name": "5차"
+      },
+      {
+       "color": 5,
+       "id": "optsoUtSE7",
+       "name": "6차"
+      },
+      {
+       "color": 6,
+       "id": "opt9CoRH0e",
+       "name": "7차"
+      },
+      {
+       "color": 7,
+       "id": "optgtTvAnn",
+       "name": "8차"
+      },
+      {
+       "color": 8,
+       "id": "optIMB60M7",
+       "name": "9차"
+      },
+      {
+       "color": 9,
+       "id": "optOrSMRNt",
+       "name": "10차"
+      },
+      {
+       "color": 25,
+       "id": "optoIZyfa1",
+       "name": "10차"
+      },
+      {
+       "color": 54,
+       "id": "optrPIRlzw",
+       "name": "취소"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "field_id": "fld2wnKuv1",
+    "field_name": "사업장착수현황",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 28,
+       "id": "optiEMs1Hn",
+       "name": "착수메일 발송"
+      },
+      {
+       "color": 35,
+       "id": "opt4eWV8Xw",
+       "name": "협약서명필요"
+      },
+      {
+       "color": 37,
+       "id": "optqRmI3CZ",
+       "name": "협약완료"
+      },
+      {
+       "color": 18,
+       "id": "optYJoecVf",
+       "name": "문서협약진행"
+      },
+      {
+       "color": 40,
+       "id": "opttri3XEz",
+       "name": "문서협약완료"
+      },
+      {
+       "color": 21,
+       "id": "optH7xTgQS",
+       "name": "착수준비"
+      },
+      {
+       "color": 0,
+       "id": "optZ0gv2ul",
+       "name": ""
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "field_id": "fldmaWyVa0",
+    "field_name": "컨설팅 착수일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "auto_fill": false,
+     "date_formatter": "yyyy/MM/dd"
+    },
+    "type": 5,
+    "ui_type": "DateTime"
+   },
+   {
+    "field_id": "fld2frs9Dj",
+    "field_name": "컨설팅 종료일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "auto_fill": false,
+     "date_formatter": "yyyy/MM/dd"
+    },
+    "type": 5,
+    "ui_type": "DateTime"
+   },
+   {
+    "description": "*알람확인",
+    "field_id": "fldqhJpl5p",
+    "field_name": "중간보고서 제출일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "auto_fill": false,
+     "date_formatter": "yyyy/MM/dd"
+    },
+    "type": 5,
+    "ui_type": "DateTime"
+   },
+   {
+    "field_id": "fld98yoBfc",
+    "field_name": "중간보고서 검수 현황",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 40,
+       "id": "optG5KDTlH",
+       "name": "제출"
+      },
+      {
+       "color": 24,
+       "id": "optDo7x56a",
+       "name": "보완요청"
+      },
+      {
+       "color": 33,
+       "id": "opthcruhDJ",
+       "name": "미제출"
+      },
+      {
+       "color": 21,
+       "id": "optKZwzpzg",
+       "name": "검수 중"
+      },
+      {
+       "color": 53,
+       "id": "optQNx3vdK",
+       "name": "내부"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "description": "*알람확인",
+    "field_id": "fld0r2ckoa",
+    "field_name": "최종보고서 제출일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "auto_fill": false,
+     "date_formatter": "yyyy/MM/dd"
+    },
+    "type": 5,
+    "ui_type": "DateTime"
+   },
+   {
+    "field_id": "fldoUfulnE",
+    "field_name": "최종보고 검수 현황",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 40,
+       "id": "opt3G20WXP",
+       "name": "제출"
+      },
+      {
+       "color": 24,
+       "id": "optjznwmLS",
+       "name": "보완요청"
+      },
+      {
+       "color": 33,
+       "id": "optoXokGqh",
+       "name": "미제출"
+      },
+      {
+       "color": 21,
+       "id": "optxWzyfxv",
+       "name": "검수 중"
+      },
+      {
+       "color": 53,
+       "id": "optQNx3vdK",
+       "name": "내부"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "description": "*알람확인",
+    "field_id": "fldBlAUoUq",
+    "field_name": "사후관리 보고서 제출일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "auto_fill": false,
+     "date_formatter": "yyyy/MM/dd"
+    },
+    "type": 5,
+    "ui_type": "DateTime"
+   },
+   {
+    "field_id": "fldqQQgIBt",
+    "field_name": "사후증빙 검수 현황",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 40,
+       "id": "optcoGDKcA",
+       "name": "제출"
+      },
+      {
+       "color": 24,
+       "id": "optICzaMwV",
+       "name": "보완요청"
+      },
+      {
+       "color": 33,
+       "id": "opt2l3L4WX",
+       "name": "미제출"
+      },
+      {
+       "color": 21,
+       "id": "optkHZs96p",
+       "name": "검수 중"
+      },
+      {
+       "color": 53,
+       "id": "optQNx3vdK",
+       "name": "내부"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "field_id": "fldgyaod7d",
+    "field_name": "인원",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": true
+    },
+    "type": 11,
+    "ui_type": "User"
+   },
+   {
+    "field_id": "fldRCnYT0r",
+    "field_name": "정책연계 가능여부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 28,
+       "id": "optQigLe5Z",
+       "name": "Y"
+      },
+      {
+       "color": 22,
+       "id": "optVAwQkQT",
+       "name": "N"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "field_id": "fldtQoglVz",
+    "field_name": "정책연계 사업",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 0,
+       "id": "optcI7ZQ7x",
+       "name": "산업일자리전환장려금"
+      },
+      {
+       "color": 1,
+       "id": "opthuLl7OX",
+       "name": "산업일자리전환채용장려금"
+      },
+      {
+       "color": 2,
+       "id": "optYmsElA8",
+       "name": "인재키움프리미엄교육"
+      },
+      {
+       "color": 3,
+       "id": "optJi46gad",
+       "name": "산업전환공동훈련센터 참여"
+      },
+      {
+       "color": 4,
+       "id": "optG8ervxm",
+       "name": "고용촉진장려금"
+      },
+      {
+       "color": 5,
+       "id": "opt5HZEmUg",
+       "name": "일가정양립고용환경개선지원"
+      },
+      {
+       "color": 6,
+       "id": "optPLqw9NV",
+       "name": "지역산업맞춤형인력양성사업"
+      },
+      {
+       "color": 7,
+       "id": "optjyKyYwv",
+       "name": "지역산업맞춤형일자리창출지원사업"
+      },
+      {
+       "color": 8,
+       "id": "optrOP2SZf",
+       "name": "S-OJT"
+      },
+      {
+       "color": 9,
+       "id": "optI7OBKQl",
+       "name": "KDT"
+      },
+      {
+       "color": 10,
+       "id": "optuaWKjtH",
+       "name": "무역보험금"
+      },
+      {
+       "color": 0,
+       "id": "optyNuWOUS",
+       "name": "산업재편"
+      },
+      {
+       "color": 1,
+       "id": "optqJ5QQCv",
+       "name": "사업전환자금"
+      },
+      {
+       "color": 2,
+       "id": "optybaanbL",
+       "name": "스마트공장구축"
+      },
+      {
+       "color": 3,
+       "id": "optZWtfDnI",
+       "name": "R&D지원"
+      },
+      {
+       "color": 4,
+       "id": "opt7xPUQwN",
+       "name": "제조혁신바우처"
+      },
+      {
+       "color": 5,
+       "id": "optLCDqCbJ",
+       "name": "기타"
+      },
+      {
+       "color": 6,
+       "id": "optlZD3Xi9",
+       "name": "없음"
+      }
+     ]
+    },
+    "type": 4,
+    "ui_type": "MultiSelect"
+   },
+   {
+    "field_id": "fldzxpDi2H",
+    "field_name": "기타사업(텍스트입력)",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldXBJ6Ydq",
+    "field_name": "실제 정책연계 시기",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 0,
+       "id": "optHwDbBEN",
+       "name": "2026. 9"
+      },
+      {
+       "color": 1,
+       "id": "optRQqXfaP",
+       "name": "2026. 10"
+      },
+      {
+       "color": 2,
+       "id": "optk4oBb0f",
+       "name": "2026. 11"
+      },
+      {
+       "color": 3,
+       "id": "optU4VCHLa",
+       "name": "2026. 12"
+      },
+      {
+       "color": 4,
+       "id": "optl6808wH",
+       "name": "2027"
+      }
+     ]
+    },
+    "type": 4,
+    "ui_type": "MultiSelect"
+   },
+   {
+    "field_id": "fldkUwYzZh",
+    "field_name": "장려금접수 시(접수증) 첨부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 17,
+    "ui_type": "Attachment"
+   },
+   {
+    "field_id": "fldHpRcZ36",
+    "field_name": "우수사례 제출 가능 여부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 28,
+       "id": "optVRZJ5e7",
+       "name": "Y"
+      },
+      {
+       "color": 22,
+       "id": "optPMjs17y",
+       "name": "N"
+      }
+     ]
+    },
+    "type": 3,
+    "ui_type": "SingleSelect"
+   },
+   {
+    "field_id": "fldZGKCl3I",
+    "field_name": "우수사례 제출 시 첨부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 17,
+    "ui_type": "Attachment"
+   }
+  ],
+  "views": [
+   {
+    "view_id": "vewiB4OQi1",
+    "view_name": "★사업장 관리",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewOwCUj1q",
+    "view_name": "사업장 관리 등록순",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewZTpQTVX",
+    "view_name": "칸반",
+    "view_private_owner_id": "ou_971561cc7a31c19c3d4ec2a8b2a9db1f",
+    "view_public_level": "Private",
+    "view_type": "kanban"
+   }
+  ]
+ },
+ {
+  "table": {
+   "name": "컨설턴트 개인별 안내",
+   "revision": 778,
+   "table_id": "tblY7hzuaSvyqIyU"
+  },
+  "fields": [
+   {
+    "field_id": "fldfmQZL5n",
+    "field_name": "성함",
+    "is_extend": false,
+    "is_primary": true,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldNwvtTzP",
+    "field_name": "개인별 안내",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldSV9ADED",
+    "field_name": "8.8 AX-WORKBENCH 교육",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldg5m2au0",
+    "field_name": "8.5 컨설턴트 비대면 워크숍",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fld5jU8fDG",
+    "field_name": "5.16 컨설턴트 워크숍",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldddpns6c",
+    "field_name": "4.29 보고서 작성 교육",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldlmqbG5L",
+    "field_name": "3.21 컨설턴트 워크숍 교육",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fld4uOacN6",
+    "field_name": "인원",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": false
+    },
+    "type": 11,
+    "ui_type": "User"
+   },
+   {
+    "description": "필수 이수시간 12시간",
+    "field_id": "fldwNobxnZ",
+    "field_name": "총 교육이수 시간",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "",
+     "formula_expression": "IFERROR(VALUE(REGEXEXTRACT(bitable::$table[tblY7hzuaSvyqIyU].$field[fldlmqbG5L],\"[0-9]+\\.?[0-9]*\")),0) + \nIFERROR(VALUE(REGEXEXTRACT(bitable::$table[tblY7hzuaSvyqIyU].$field[fld5jU8fDG],\"[0-9]+\\.?[0-9]*\")),0) + \nIFERROR(VALUE(REGEXEXTRACT(bitable::$table[tblY7hzuaSvyqIyU].$field[fldddpns6c],\"[0-9]+\\.?[0-9]*\")),0) + IFERROR(VALUE(REGEXEXTRACT(bitable::$table[tblY7hzuaSvyqIyU].$field[fldg5m2au0],\"[0-9]+\\.?[0-9]*\")),0) + IFERROR(VALUE(REGEXEXTRACT(bitable::$table[tblY7hzuaSvyqIyU].$field[fldSV9ADED],\"[0-9]+\\.?[0-9]*\")),0)\n& \"시간\"",
+     "type": {
+      "data_type": 1
+     }
+    },
+    "type": 20,
+    "ui_type": "Formula"
+   }
+  ],
+  "views": [
+   {
+    "view_id": "vewpEpiCwT",
+    "view_name": "그리드",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   }
+  ]
+ },
+ {
+  "table": {
+   "name": "내부 컨설턴트 개인별 안내",
+   "revision": 87,
+   "table_id": "tbl1McgbZJH1Xbq4"
+  },
+  "fields": [
+   {
+    "field_id": "fldKJWBkmb",
+    "field_name": "성함",
+    "is_extend": false,
+    "is_primary": true,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldOzKd9Hq",
+    "field_name": "개인별 안내",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldZfY0cO3",
+    "field_name": "인원",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": false
+    },
+    "type": 11,
+    "ui_type": "User"
+   }
+  ],
+  "views": [
+   {
+    "view_id": "vewgAAfvrH",
+    "view_name": "그리드",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   }
+  ]
+ },
+ {
+  "table": {
+   "name": "컨설턴트 명단",
+   "revision": 566,
+   "table_id": "tblltQnU8Dfj39AZ"
+  },
+  "fields": [
+   {
+    "field_id": "flddd1MxWG",
+    "field_name": "성명",
+    "is_extend": false,
+    "is_primary": true,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldDERSilV",
+    "field_name": "구매처코드",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "0"
+    },
+    "type": 2,
+    "ui_type": "Number"
+   },
+   {
+    "field_id": "fldOLLL4a1",
+    "field_name": "연락처",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 13,
+    "ui_type": "Phone"
+   },
+   {
+    "field_id": "fld0LYJyY2",
+    "field_name": "이메일주소",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Email"
+   },
+   {
+    "field_id": "fldSZj3Wzs",
+    "field_name": "수행건수",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "0",
+     "formula_expression": "bitable::$table[tbl9IrX9vRy3SunG].FILTER(CurrentValue.$column[fldPBi4HP5].CONTAIN(bitable::$table[tblltQnU8Dfj39AZ].$field[flddd1MxWG])).$column[fldVmyzOd8].LISTCOMBINE().COUNTA()",
+     "type": {
+      "data_type": 2,
+      "ui_property": {
+       "formatter": "0"
+      },
+      "ui_type": "Number"
+     }
+    },
+    "type": 20,
+    "ui_type": "Formula"
+   },
+   {
+    "field_id": "fldcfUOV5q",
+    "field_name": "정책연계 확인",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "0",
+     "formula_expression": "bitable::$table[tbl9IrX9vRy3SunG].FILTER(CurrentValue.$column[fldPBi4HP5].CONTAIN(bitable::$table[tblltQnU8Dfj39AZ].$field[flddd1MxWG])&&NOT(ISBLANK(CurrentValue.$column[fldRCnYT0r]))).$column[fldRCnYT0r].COUNTA()",
+     "type": {
+      "data_type": 2,
+      "ui_property": {
+       "formatter": "0"
+      },
+      "ui_type": "Number"
+     }
+    },
+    "type": 20,
+    "ui_type": "Formula"
+   },
+   {
+    "description": "차수 조회는 차수별로 컨설턴트 정보를 모아서 볼 필요가 있을 때, 필드편집-참조필터 두번째 조건을 필요 시 변경하여 차수별로 볼 수 있도록 돕기위해 만든 필드입니다.",
+    "field_id": "fld4QL0VEq",
+    "field_name": "차수 조회",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "filter_info": {
+      "conditions": {
+       "children": [
+        {
+         "field_id": "fldPBi4HP5",
+         "field_type": 18,
+         "operator": "contains",
+         "value": null
+        },
+        {
+         "field_id": "fldj1govSK",
+         "field_type": 3,
+         "operator": "is",
+         "value": null
+        }
+       ],
+       "conjunction": "and"
+      },
+      "target_table": "tbl9IrX9vRy3SunG"
+     },
+     "formatter": "",
+     "formula": "bitable::$table[tbl9IrX9vRy3SunG].FILTER(CurrentValue.$column[fldPBi4HP5].CONTAIN(bitable::$table[tblltQnU8Dfj39AZ].$field[flddd1MxWG])&&CurrentValue.$column[fldj1govSK]=bitable::$table[tbl9IrX9vRy3SunG].$column[fldj1govSK].$option[optoIZyfa1]).$column[fldj1govSK].LISTCOMBINE()",
+     "roll_up": 0,
+     "target_field": "fldj1govSK"
+    },
+    "type": 19,
+    "ui_type": "Lookup"
+   },
+   {
+    "field_id": "fldmnxg4o1",
+    "field_name": "주요 활동 지역",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fld6pcsJ19",
+    "field_name": "이력서",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 17,
+    "ui_type": "Attachment"
+   },
+   {
+    "field_id": "fldKUBoSSj",
+    "field_name": "보완요청",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldPAz2UjQ",
+    "field_name": "다용도수식",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "",
+     "formula_expression": "IF(LOOKUP(bitable::$table[tblltQnU8Dfj39AZ].$field[flddd1MxWG],bitable::$table[tblY7hzuaSvyqIyU].$column[fldfmQZL5n],bitable::$table[tblY7hzuaSvyqIyU].$column[fldNwvtTzP])=\"26 산업일자리전환 참여기업 수요조사 미참여\",\"x\",IF(LOOKUP(bitable::$table[tblltQnU8Dfj39AZ].$field[flddd1MxWG],bitable::$table[tblY7hzuaSvyqIyU].$column[fldfmQZL5n],bitable::$table[tblY7hzuaSvyqIyU].$column[fldNwvtTzP])=\"26 산업일자리전환 참여기업 수요조사 참여완료\",\"o\",\"\"))",
+     "type": {
+      "data_type": 1
+     }
+    },
+    "type": 20,
+    "ui_type": "Formula"
+   },
+   {
+    "field_id": "fldwc7VJAP",
+    "field_name": "비고",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldl9CVJed",
+    "field_name": "등록일자",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "date_formatter": "yyyy/MM/dd HH:mm"
+    },
+    "type": 1001,
+    "ui_type": "CreatedTime"
+   },
+   {
+    "field_id": "fldfEzWgNA",
+    "field_name": "컨설턴트 평가",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "0",
+     "max": 5,
+     "min": 1,
+     "rating": {
+      "symbol": "number"
+     }
+    },
+    "type": 2,
+    "ui_type": "Rating"
+   },
+   {
+    "description": "버튼 클릭 시 컨설턴트 개인별 안내 (외부)에 명단 이름 추가됨\n*인원설정 별도로 진행 필수",
+    "field_id": "fldTq5nFTx",
+    "field_name": "개인별안내추가-외부",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 3001,
+    "ui_type": "Button"
+   }
+  ],
+  "views": [
+   {
+    "view_id": "vewCIWWVeN",
+    "view_name": "컨설턴트 명단",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewcLqFmw4",
+    "view_name": "등록순",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewzeeti9r",
+    "view_name": "산업일자리전환 컨설턴트 신청",
+    "view_public_level": "Public",
+    "view_type": "form",
+    "form": {
+     "form": {
+      "description": "* 컨설턴트 이력서 다운로드 후 작성 및 첨부하여 제출\n   ⬇⬇⬇⬇⬇\n2026년 산업일자리전환 컨설턴트 이력서",
+      "name": "산업일자리전환 컨설턴트 신청",
+      "shared": true,
+      "shared_limit": "anyone_editable",
+      "shared_url": "https://bjpuqz1k85ih.jp.larksuite.com/share/base/shrjpvhEzKusN3S2HSOs9hvjfch",
+      "submit_limit_once": false
+     }
+    },
+    "form_fields": [
+     {
+      "description": null,
+      "field_id": "flddd1MxWG",
+      "required": true,
+      "rich_description": null,
+      "title": "성명",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldOLLL4a1",
+      "required": true,
+      "rich_description": null,
+      "title": "연락처",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fld0LYJyY2",
+      "required": true,
+      "rich_description": null,
+      "title": "이메일주소",
+      "visible": true
+     },
+     {
+      "description": "ex)서울, 경북, 전남",
+      "field_id": "fldmnxg4o1",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "ex)서울, 경북, 전남"
+       }
+      ],
+      "title": "주요 활동 지역",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fld6pcsJ19",
+      "required": true,
+      "rich_description": null,
+      "title": "이력서",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldfEzWgNA",
+      "required": false,
+      "rich_description": null,
+      "title": "컨설턴트 평가",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldKUBoSSj",
+      "required": false,
+      "rich_description": null,
+      "title": "보완요청",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldwc7VJAP",
+      "required": false,
+      "rich_description": null,
+      "title": "비고",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldDERSilV",
+      "required": false,
+      "rich_description": null,
+      "title": "구매처코드",
+      "visible": false
+     }
+    ]
+   },
+   {
+    "view_id": "vewDzm4o1K",
+    "view_name": "그리드 3",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewP8EFp1P",
+    "view_name": "그리드 4",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   }
+  ]
+ },
+ {
+  "table": {
+   "name": "<완료>비대면 설명회 참석가능일자 설문",
+   "revision": 71,
+   "table_id": "tblKCyLrzIr6pywc"
+  },
+  "fields": [
+   {
+    "field_id": "fldUaiUArn",
+    "field_name": "텍스트",
+    "is_extend": false,
+    "is_primary": true,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldZa9SZzp",
+    "field_name": "제출 일시",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "date_formatter": "yyyy/MM/dd HH:mm"
+    },
+    "type": 1001,
+    "ui_type": "CreatedTime"
+   },
+   {
+    "field_id": "fldGScpx6G",
+    "field_name": "응답자",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1003,
+    "ui_type": "CreatedUser"
+   },
+   {
+    "field_id": "fldyWtsK7E",
+    "field_name": "여러 옵션",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "options": [
+      {
+       "color": 0,
+       "id": "optIZT9Jxl",
+       "name": "4/16(목) 18:30"
+      },
+      {
+       "color": 1,
+       "id": "optsdfTL0g",
+       "name": "4/20(월) 18:30"
+      },
+      {
+       "color": 2,
+       "id": "opt5C2TigX",
+       "name": "4/21(화) 18:30"
+      },
+      {
+       "color": 3,
+       "id": "optrFgFSGU",
+       "name": "참석 불가능한 일자 없음"
+      }
+     ]
+    },
+    "type": 4,
+    "ui_type": "MultiSelect"
+   }
+  ],
+  "views": [
+   {
+    "view_id": "vewjOUZhlu",
+    "view_name": "설문지",
+    "view_public_level": "Public",
+    "view_type": "form",
+    "form": {
+     "form": {
+      "description": "26년 산업일자리전환컨설팅 컨설턴트 워크숍 미참여 컨설턴트 안내\n\n- 3.21(토) 타 일정으로 워크숍에 참석 못하신 컨설턴트분들을 대상으로 26년 사업안내 및 시스템 사용에 대한 설명회를 비대면으로 개최하고자 하오니 아래 일정 중 ★참석 불가능★한 일정을 체크해 주시면 최대한 많이 참석하실 수 있는 일정으로 재안내드리겠습니다. \n\n- 대상 : 3/21 워크숍 미참석자 (12명)\n- 일정 : 4.16(목), 20(월), 21(화) 18:30\n- 3일 중 불가 일정 체크\n- 회의방식: 비대면 줌(Zoom)회의\n- 제출일: 4/13(월) 12:00까지 제출\n\n문의사항 있으신 경우 02-6240-4811 회신 부탁드립니다.",
+      "name": "설문지",
+      "shared": true,
+      "shared_limit": "anyone_editable",
+      "shared_url": "https://bjpuqz1k85ih.jp.larksuite.com/share/base/shrjpy7dJ1ACtMDHGnw80C2t55b",
+      "submit_limit_once": false
+     }
+    },
+    "form_fields": [
+     {
+      "description": null,
+      "field_id": "fldUaiUArn",
+      "required": true,
+      "rich_description": null,
+      "title": "성명",
+      "visible": true
+     },
+     {
+      "description": "비대면 설명회 ★참석 불가능★한 일정을 체크해주세요. (복수선택 가능)",
+      "field_id": "fldyWtsK7E",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "비대면 설명회 ★참석 불가능★한 일정을 체크해주세요. (복수선택 가능)"
+       }
+      ],
+      "title": "불가능한 날짜",
+      "visible": true
+     }
+    ]
+   },
+   {
+    "view_id": "vewcS4UMfQ",
+    "view_name": "결과",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   },
+   {
+    "view_id": "vewu2IhhsW",
+    "view_name": "칸반",
+    "view_public_level": "Public",
+    "view_type": "kanban"
+   }
+  ]
+ },
+ {
+  "table": {
+   "name": "27년 컨설팅 사전 접수",
+   "revision": 64,
+   "table_id": "tbllusMn4MDTnf69"
+  },
+  "fields": [
+   {
+    "field_id": "fldQPKCpj4",
+    "field_name": "사업장명",
+    "is_extend": false,
+    "is_primary": true,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fld1u3mmfO",
+    "field_name": "사업자등록번호",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldaVVSVFB",
+    "field_name": "업태",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldtLjgY0L",
+    "field_name": "종목",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldJJOnscT",
+    "field_name": "근로자 수",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "formatter": "0"
+    },
+    "type": 2,
+    "ui_type": "Number"
+   },
+   {
+    "field_id": "fldUVhpibQ",
+    "field_name": "사업장 주소",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldiTwpJxe",
+    "field_name": "담당부서",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldNJDLdpC",
+    "field_name": "담당자명",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldWldwj4n",
+    "field_name": "담당자 직책",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldri0LLJL",
+    "field_name": "담당자 연락처",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 13,
+    "ui_type": "Phone"
+   },
+   {
+    "field_id": "fldJxS38Z9",
+    "field_name": "담당자 이메일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "field_id": "fldueClJGJ",
+    "field_name": "생성 날짜",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "date_formatter": "yyyy-MM-dd HH:mm"
+    },
+    "type": 1001,
+    "ui_type": "CreatedTime"
+   },
+   {
+    "field_id": "fldK1oZwAi",
+    "field_name": "착수메일",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "multiple": true,
+     "table_id": "tblltQnU8Dfj39AZ",
+     "table_name": "컨설턴트 명단"
+    },
+    "type": 18,
+    "ui_type": "SingleLink"
+   },
+   {
+    "field_id": "fldi128gL3",
+    "field_name": "비고",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1,
+    "ui_type": "Text"
+   },
+   {
+    "description": "사업장관리시트에 사업장명 추가하는 버튼\n*사업장명만 추가 컨설턴트 인원설정 필수",
+    "field_id": "fldem3PXLj",
+    "field_name": "사업장관리추가",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 3001,
+    "ui_type": "Button"
+   },
+   {
+    "field_id": "fld5m7oHaf",
+    "field_name": "생성한 사람",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": null,
+    "type": 1003,
+    "ui_type": "CreatedUser"
+   },
+   {
+    "field_id": "fldmPZp7Sl",
+    "field_name": "진행상황조회",
+    "is_extend": false,
+    "is_primary": false,
+    "is_synced": false,
+    "property": {
+     "filter_info": {
+      "conditions": {
+       "children": [
+        {
+         "field_id": "fldVmyzOd8",
+         "field_type": 1,
+         "operator": "is",
+         "value": null
+        }
+       ],
+       "conjunction": "and"
+      },
+      "target_table": "tbl9IrX9vRy3SunG"
+     },
+     "formatter": "",
+     "formula": "bitable::$table[tbl9IrX9vRy3SunG].FILTER(CurrentValue.$column[fldVmyzOd8]=bitable::$table[tbllusMn4MDTnf69].$field[fldQPKCpj4]).$column[fld2wnKuv1].LISTCOMBINE()",
+     "roll_up": 0,
+     "target_field": "fld2wnKuv1"
+    },
+    "type": 19,
+    "ui_type": "Lookup"
+   }
+  ],
+  "views": [
+   {
+    "view_id": "vewgc24Wu4",
+    "view_name": "2027년 산업일자리전환 컨설팅 사전 접수",
+    "view_public_level": "Public",
+    "view_type": "form",
+    "form": {
+     "form": {
+      "description": "해당 접수는 27년 한국표준협회 산업일자리전환 컨설팅 진행을 희망하는 사업장 대상 사전 신청 절차입니다. \n실제 컨설팅 신청 절차는 추후에 안내드릴 예정으로, 안내 받을 시에 필요 서류와 함께 신청해주시기를 바랍니다. \n\n*한국표준협회 산업일자리전환 전담기관 일터혁신센터 내부에서만 공유되는 폼입니다. \n자세한 사항은 ksawork02@ksa.or.kr 으로 문의 주시길 바랍니다.",
+      "name": "2027년 산업일자리전환 컨설팅 사전 접수",
+      "shared": true,
+      "shared_limit": "anyone_editable",
+      "shared_url": "https://bjpuqz1k85ih.jp.larksuite.com/share/base/shrjpDRmuvHGjZU3NkZIG5FmIHd",
+      "submit_limit_once": false
+     }
+    },
+    "form_fields": [
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldQPKCpj4",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "사업장명",
+      "visible": true
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fld1u3mmfO",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "사업자등록번호",
+      "visible": true
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldaVVSVFB",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "업태",
+      "visible": true
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldtLjgY0L",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "종목",
+      "visible": true
+     },
+     {
+      "description": "건강보험 가입자 명부 상 인원 수 기준",
+      "field_id": "fldJJOnscT",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "건강보험 가입자 명부 상 인원 수 기준"
+       }
+      ],
+      "title": "근로자 수",
+      "visible": true
+     },
+     {
+      "description": "사업자등록증 기준",
+      "field_id": "fldUVhpibQ",
+      "required": true,
+      "rich_description": [
+       {
+        "link": null,
+        "segment_type": "text",
+        "text": "사업자등록증 기준"
+       }
+      ],
+      "title": "사업장 주소",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldiTwpJxe",
+      "required": true,
+      "rich_description": null,
+      "title": "담당부서",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldNJDLdpC",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자명",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldWldwj4n",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자 직책",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldri0LLJL",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자 연락처",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldJxS38Z9",
+      "required": true,
+      "rich_description": null,
+      "title": "담당자 이메일",
+      "visible": true
+     },
+     {
+      "description": null,
+      "field_id": "fldK1oZwAi",
+      "required": false,
+      "rich_description": null,
+      "title": "착수메일",
+      "visible": false
+     },
+     {
+      "description": null,
+      "field_id": "fldi128gL3",
+      "required": false,
+      "rich_description": null,
+      "title": "비고",
+      "visible": false
+     }
+    ]
+   },
+   {
+    "view_id": "vewigvW3Ez",
+    "view_name": "27년 사전 신청 사업장 DB",
+    "view_public_level": "Public",
+    "view_type": "grid"
+   }
+  ]
+ }
+]

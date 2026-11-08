@@ -1,0 +1,480 @@
+<script>
+/* =========================================================
+ * 세부 기능 화면: 일정·서류·체크리스트·만족도·교육·정산·추천·실적·공지·문의·문자
+ * ========================================================= */
+function won(n) { n = Number(String(n || 0).replace(/[^0-9.\-]/g, '')) || 0; return n.toLocaleString('ko-KR'); }
+function inqBadge(st) { return '<span class="badge ' + ({ 접수: 'b-warn', 처리중: 'b-info', 완료: 'b-ok' }[st] || 'b-gray') + '">' + esc(st) + '</span>'; }
+function bc(n) { return n ? ' (' + n + ')' : ''; }
+
+function adminTabsList() {
+  var b = S.badges || {};
+  return [['dash', '대시보드'], ['apps', '신청'], ['projects', '사업장'], ['visits', '일정'], ['cons', '컨설턴트'], ['edu', '교육' + bc(b.교육신청)],
+    ['fee', '정산' + bc(b.정산)], ['report', '실적'], ['board', '공지·문의' + bc(b.문의)], ['mail', '메일·문자'], ['sched', '차수일정'], ['settings', '설정']];
+}
+function consTabsList() {
+  var b = S.badges || {};
+  return [['mine', '내 사업장'], ['cvisits', '일정'], ['cedu', '교육' + bc(b.교육)], ['cnotice', '공지·자료' + bc(b.공지)], ['cinq', '문의'], ['cfee', '정산'], ['profile', '내 정보']];
+}
+
+/* ---------- 달력 ---------- */
+function calendarHtml(ym, events, opt) {
+  var y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) - 1;
+  var first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate(), pad = first.getDay();
+  var by = {};
+  events.forEach(function (e) { (by[e['일자']] = by[e['일자']] || []).push(e); });
+  var cells = [];
+  for (var i = 0; i < pad; i++) cells.push('<div class="cal-cell empty"></div>');
+  for (var d = 1; d <= days; d++) {
+    var key = ym + '-' + ('0' + d).slice(-2), list = (by[key] || []).sort(function (a, b) { return (a['시작'] || '') < (b['시작'] || '') ? -1 : 1; });
+    cells.push('<div class="cal-cell' + (key === TODAY ? ' today' : '') + '"><div class="cal-d">' + d + '</div>' + list.slice(0, 6).map(function (e) {
+      return '<div class="cal-ev st-' + esc(e['상태'] || '예정') + '" data-ev="' + esc(e.ID) + '" title="' + esc((e['시작'] || '') + ' ' + e._사업장명 + ' · ' + e._컨설턴트명) + '">' +
+        esc((e['시작'] || '') + ' ' + e._사업장명) + (opt && opt.showName ? ' · ' + esc(e._컨설턴트명) : '') + '</div>';
+    }).join('') + (list.length > 6 ? '<div class="small muted">+' + (list.length - 6) + '</div>' : '') + '</div>');
+  }
+  return '<div class="cal"><div class="cal-h">일</div><div class="cal-h">월</div><div class="cal-h">화</div><div class="cal-h">수</div><div class="cal-h">목</div><div class="cal-h">금</div><div class="cal-h">토</div>' + cells.join('') + '</div>' +
+    '<div class="legend" style="margin-top:8px"><span><i style="background:#2f6db5"></i>예정</span><span><i style="background:#1e8e5a"></i>완료</span><span><i style="background:#b9c2ce"></i>취소</span></div>';
+}
+function monthNav(ym) {
+  var y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
+  var prev = m === 1 ? (y - 1) + '-12' : y + '-' + ('0' + (m - 1)).slice(-2), next = m === 12 ? (y + 1) + '-01' : y + '-' + ('0' + (m + 1)).slice(-2);
+  return '<button class="btn sm" data-ym="' + prev + '">◀</button><b style="font-size:16px">' + y + '년 ' + m + '월</b><button class="btn sm" data-ym="' + next + '">▶</button><button class="btn sm" data-ym="' + TODAY.slice(0, 7) + '">이번 달</button>';
+}
+(function () {
+  var css = document.createElement('style');
+  css.textContent = '.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}' +
+    '.cal-h{background:#f7f9fc;padding:6px;text-align:center;font-size:12px;color:var(--muted)}.cal-cell{background:#fff;min-height:96px;padding:4px 5px}.cal-cell.empty{background:#fafbfc}' +
+    '.cal-cell.today{background:#f2f7ff}.cal-d{font-size:12px;color:var(--muted);margin-bottom:2px}.cal-ev{font-size:11px;border-radius:4px;padding:1px 5px;margin-bottom:2px;cursor:pointer;color:#fff;background:#2f6db5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.cal-ev.st-완료{background:#1e8e5a}.cal-ev.st-취소{background:#b9c2ce;text-decoration:line-through}' +
+    '.cl-row{display:grid;grid-template-columns:1fr 110px 1fr;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid #f0f2f6;font-size:13px}' +
+    '.stepper{display:flex;gap:6px;flex-wrap:wrap}.stepper div{flex:1;min-width:90px;text-align:center;padding:8px 4px;border-radius:8px;background:#eef1f5;font-size:12px;color:#667}.stepper div.on{background:#e3f4ec;color:var(--ok);font-weight:500}' +
+    '.nitem{border-bottom:1px solid #f0f2f6;padding:10px 4px;cursor:pointer}.nitem.unread b{color:var(--brand2)}.nitem .body{white-space:pre-wrap;margin-top:6px;display:none;cursor:auto}.nitem.open .body{display:block}' +
+    '@media print{.topbar,.no-print,.filters{display:none!important}main{padding:0}.section{break-inside:avoid;border:0}body{background:#fff}}' +
+    '@media (max-width:760px){.cal-cell{min-height:64px}.cal-ev{font-size:10px}.cl-row{grid-template-columns:1fr}}';
+  document.head.appendChild(css);
+})();
+function bindMonthNav(root, fn) { $$('[data-ym]', root).forEach(function (b) { b.onclick = function () { fn(b.dataset.ym); }; }); }
+
+/* ---------- 관리자: 일정 ---------- */
+function renderVisitsAdmin(ym) {
+  ym = ym || S.visitYm || TODAY.slice(0, 7); S.visitYm = ym;
+  var from = ym + '-01', to = ym + '-31';
+  call('listVisits', tok(), from, to).then(function (list) {
+    var f = S.f.visit = S.f.visit || {};
+    var consOpts = uniq(list.map(function (v) { return v._컨설턴트명; })).sort();
+    var rows = list.filter(function (v) { return (!f.c || v._컨설턴트명 === f.c) && (!f.st || v['상태'] === f.st); });
+    $('#view').innerHTML = '<div class="filters">' + monthNav(ym) + '<span class="grow"></span><select id="vfC">' + opts(consOpts, f.c, '전체 컨설턴트') + '</select><select id="vfS">' + opts(S.options.일정상태, f.st, '전체 상태') + '</select>' +
+      '<span class="count">' + rows.length + '건</span><button class="btn sm" id="vXls">엑셀</button></div><div id="calBox">' + calendarHtml(ym, rows, { showName: true }) + '</div>' +
+      '<p class="small muted">일정은 컨설턴트가 사업장 상세의 [일정] 탭에서 등록합니다. 항목을 누르면 해당 사업장이 열립니다.</p>';
+    bindMonthNav($('#view'), renderVisitsAdmin);
+    $('#vfC').onchange = function () { f.c = this.value; renderVisitsAdmin(ym); };
+    $('#vfS').onchange = function () { f.st = this.value; renderVisitsAdmin(ym); };
+    $('#vXls').onclick = function () { exportXlsx('방문일정_' + ym, [{ k: '일자' }, { k: '시작' }, { k: '종료' }, { k: '_사업장명', l: '사업장' }, { k: '_차수', l: '차수' }, { k: '_컨설턴트명', l: '컨설턴트' }, { k: '방식' }, { k: '장소' }, { k: '상태' }, { k: '내용' }], rows); };
+    $$('[data-ev]').forEach(function (e) { e.onclick = function () { var v = list.filter(function (x) { return x.ID === e.dataset.ev; })[0]; openProject(v['사업장ID'], 'visits'); }; });
+  }, function (e) { toast(e.message, true); });
+}
+
+/* ---------- 컨설턴트: 일정 ---------- */
+function renderVisitsCons(ym) {
+  ym = ym || S.visitYm || TODAY.slice(0, 7); S.visitYm = ym;
+  call('listVisits', tok(), ym + '-01', ym + '-31').then(function (list) {
+    $('#view').innerHTML = '<div class="filters">' + monthNav(ym) + '<span class="grow"></span><select id="vNewP">' + '<option value="">사업장 선택해서 일정 추가</option>' +
+      S.projects.map(function (p) { return '<option value="' + esc(p.ID) + '">' + esc(p['사업장명']) + ' (' + esc(p['차수']) + ')</option>'; }).join('') + '</select></div>' +
+      calendarHtml(ym, list, {}) + '<p class="small muted">항목을 누르면 사업장 상세의 일정 탭이 열립니다. 일정을 등록하면 담당자에게 안내 메일을 보낼 수 있고, 같은 날 수행일지를 쓰면 \'완료\'로 바뀝니다.</p>';
+    bindMonthNav($('#view'), renderVisitsCons);
+    $('#vNewP').onchange = function () { if (this.value) openProject(this.value, 'visits'); };
+    $$('[data-ev]').forEach(function (e) { e.onclick = function () { var v = list.filter(function (x) { return x.ID === e.dataset.ev; })[0]; openProject(v['사업장ID'], 'visits'); }; });
+  }, function (e) { toast(e.message, true); });
+}
+
+/* ---------- 사업장 상세 추가 탭 ---------- */
+function drawExtraSub(s, el, d, p, admin, reopen) {
+  var ex = d.extra || {};
+  if (s === 'visits') {
+    var x = '<div class="section"><h3 id="vTitle">일정 등록</h3><div class="grid3" id="vForm">' +
+      fieldsHtml([['일자', 'date'], ['시작', 'text', null, '시작 (예: 14:00)'], ['종료', 'text', null, '종료 (예: 16:00)'], ['방식', 'select', S.options.수행방식], ['장소'], ['상태', 'select', S.options.일정상태]], { 일자: TODAY, 방식: '방문', 상태: '예정' }) +
+      '<div class="field full"><label>내용</label><input data-k="내용" placeholder="예: 착수 미팅, 공정 진단"></div></div><input type="hidden" id="vId">' +
+      '<div class="row" style="margin-top:10px"><button class="btn primary" id="vSave">저장</button><button class="btn hidden" id="vNew">새로 등록</button><span class="small muted">구글 캘린더에도 등록됩니다.</span></div></div>';
+    x += '<div class="section"><h3>일정 ' + (ex.visits || []).length + '건</h3>' + ((ex.visits || []).length ? '<table class="t"><thead><tr><th>일자</th><th>시간</th><th>방식</th><th>장소</th><th>내용</th><th>상태</th><th>안내</th><th></th></tr></thead><tbody>' +
+      ex.visits.map(function (v) {
+        return '<tr><td class="nowrap">' + esc(v['일자']) + '</td><td class="nowrap">' + esc(v['시작']) + (v['종료'] ? '~' + esc(v['종료']) : '') + '</td><td>' + esc(v['방식']) + '</td><td>' + esc(v['장소']) + '</td><td>' + esc(v['내용']) + '</td><td>' + badge(v['상태']) + '</td>' +
+          '<td class="small">' + (v['안내발송'] ? esc(v['안내발송'].slice(5, 16)) : '') + '</td><td class="nowrap"><button class="btn sm" data-ve="' + esc(v.ID) + '">수정</button> <button class="btn sm" data-vn="' + esc(v.ID) + '">담당자 안내</button> <button class="btn sm danger" data-vd="' + esc(v.ID) + '">삭제</button></td></tr>';
+      }).join('') + '</tbody></table>' : '<span class="muted small">등록된 일정이 없습니다.</span>') + '</div>';
+    el.innerHTML = x;
+    $('#vSave', el).onclick = function () {
+      var v = readFields($('#vForm', el)); v['사업장ID'] = p.ID; v.ID = $('#vId', el).value;
+      run('저장 중...', 'saveVisit', tok(), v).then(function (nd) { toast('저장했습니다.'); reopen(nd, 'visits'); });
+    };
+    $('#vNew', el).onclick = function () { drawExtraSub('visits', el, d, p, admin, reopen); };
+    $$('[data-ve]', el).forEach(function (b) { b.onclick = function () {
+      var v = ex.visits.filter(function (z) { return z.ID === b.dataset.ve; })[0];
+      $$('[data-k]', $('#vForm', el)).forEach(function (i) { i.value = v[i.dataset.k] || ''; });
+      $('#vId', el).value = v.ID; $('#vTitle', el).textContent = v['일자'] + ' 일정 수정'; $('#vNew', el).classList.remove('hidden');
+    }; });
+    $$('[data-vn]', el).forEach(function (b) { b.onclick = function () { if (confirm('사업장 담당자에게 일정 안내 메일' + (S.sms ? '·문자' : '') + '를 보낼까요?')) run('발송 중...', 'notifyVisit', tok(), b.dataset.vn).then(function (nd) { toast('안내를 보냈습니다.'); reopen(nd, 'visits'); }); }; });
+    $$('[data-vd]', el).forEach(function (b) { b.onclick = function () { if (confirm('일정을 삭제할까요? (캘린더에서도 삭제)')) run('삭제 중...', 'deleteVisit', tok(), b.dataset.vd).then(function (nd) { reopen(nd, 'visits'); }); }; });
+    return;
+  }
+  if (s === 'docs') {
+    var latest = {};
+    (ex.docs || []).forEach(function (dd) { if (!latest[dd['종류']]) latest[dd['종류']] = dd; });
+    var y = '<div class="section"><h3>필수 서류</h3><table class="t"><thead><tr><th>서류</th><th>상태</th><th>최근 제출</th><th>올리기</th></tr></thead><tbody>' +
+      (ex.docTypes || []).map(function (t) {
+        var dd = latest[t];
+        return '<tr><td><b>' + esc(t) + '</b></td><td>' + (dd ? badge(dd['확인']) + (dd['의견'] ? '<div class="small" style="color:var(--bad)">' + esc(dd['의견']) + '</div>' : '') : '<span class="badge b-warn">미제출</span>') + '</td>' +
+          '<td>' + (dd ? filesHtml(dd['파일'], false) + '<div class="small muted">' + esc(dd['제출일']) + '</div>' : '') +
+          (admin && dd && dd['확인'] !== '확인' ? '<div class="row" style="margin-top:4px"><button class="btn sm primary" data-dok="' + esc(dd.ID) + '">확인</button><button class="btn sm danger" data-dno="' + esc(dd.ID) + '">반려</button></div>' : '') + '</td>' +
+          '<td><div class="row"><input type="file" data-dfile="' + esc(t) + '" style="max-width:200px"><button class="btn sm" data-dup="' + esc(t) + '">올리기</button></div></td></tr>';
+      }).join('') + '</tbody></table><p class="small muted">서류 종류는 설정의 DOC_TYPES에서 바꿉니다.' + (admin ? ' 관리자가 올린 서류는 바로 \'확인\' 처리됩니다.' : ' 올리면 관리자 확인 후 \'확인\'으로 바뀝니다.') + '</p></div>';
+    var hist = (ex.docs || []);
+    if (hist.length) y += '<div class="section"><h3>제출 이력</h3>' + hist.map(function (dd) { return '<div class="row small" style="padding:3px 0"><b>' + esc(dd['종류']) + '</b>' + badge(dd['확인']) + '<span class="muted">' + esc(dd['제출일']) + ' · ' + esc(dd['제출자']) + '</span></div>'; }).join('') + '</div>';
+    el.innerHTML = y;
+    $$('[data-dup]', el).forEach(function (b) { b.onclick = function () {
+      readFiles($('[data-dfile="' + b.dataset.dup + '"]', el), S.maxMb).then(function (files) {
+        if (!files.length) throw new Error('파일을 선택해 주세요.');
+        return run('올리는 중...', 'uploadDoc', tok(), p.ID, b.dataset.dup, files);
+      }).then(function (nd) { toast('올렸습니다.'); reopen(nd, 'docs'); }, function (e) { toast(e.message, true); });
+    }; });
+    $$('[data-dok]', el).forEach(function (b) { b.onclick = function () { run('저장 중...', 'adminReviewDoc', tok(), b.dataset.dok, '확인', '').then(function (nd) { reopen(nd, 'docs'); }); }; });
+    $$('[data-dno]', el).forEach(function (b) { b.onclick = function () { var why = prompt('반려 사유 (컨설턴트에게 메일로 전달)'); if (why !== null) run('저장 중...', 'adminReviewDoc', tok(), b.dataset.dno, '반려', why).then(function (nd) { reopen(nd, 'docs'); }); }; });
+    return;
+  }
+  if (s === 'survey') {
+    var sv = ex.surveys || [];
+    var z = '<div class="section"><h3>만족도 설문</h3>' + (sv.length ? sv.map(function (r) {
+      var sc = parseFiles(r['점수']);
+      return '<div class="card" style="padding:12px;margin-bottom:8px"><div class="row"><b>' + (r['응답일'] ? '종합 ' + esc(r['종합']) + '점' : '미응답') + '</b><span class="muted small">발송 ' + esc(r['발송일']) + (r['응답일'] ? ' · 응답 ' + esc(r['응답일']) + ' · ' + esc(r['응답자']) : '') + '</span></div>' +
+        (sc.length ? '<table class="t" style="margin-top:6px"><tbody>' + sc.map(function (q) { return '<tr><td>' + esc(q['문항']) + '</td><td style="width:60px"><b>' + esc(q['점수']) + '</b>/5</td></tr>'; }).join('') + '</tbody></table>' : '') +
+        (r['의견'] ? '<div class="notice-box small" style="margin-top:6px">' + esc(r['의견']) + '</div>' : '') + '</div>';
+    }).join('') : '<p class="muted small">아직 발송하지 않았습니다.</p>') +
+      '<div class="row"><button class="btn" id="svSend">' + (sv.length ? '설문 다시 보내기' : '사업장 담당자에게 설문 보내기') + '</button></div></div>';
+    var fs = ex.settlements || [];
+    z += '<div class="section"><h3>정산</h3>' + (fs.length ? '<table class="t"><thead><tr><th>항목</th><th>컨설턴트</th><th>금액</th><th>상태</th><th>발생일</th><th>지급일</th></tr></thead><tbody>' + fs.map(function (f) {
+      return '<tr><td>' + esc(f['항목']) + '</td><td>' + esc(f._컨설턴트명) + '</td><td>' + won(f['금액']) + '원</td><td>' + badge(f['상태']) + '</td><td>' + esc(f['발생일']) + '</td><td>' + esc(f['지급일']) + '</td></tr>';
+    }).join('') + '</tbody></table>' : '<p class="muted small">정산 내역이 없습니다. (보고서가 검수완료되면 수당기준에 따라 생성)</p>') + '</div>';
+    el.innerHTML = z;
+    $('#svSend', el).onclick = function () {
+      run('발송 중...', 'adminSendSurvey', tok(), [p.ID], sv.length > 0).then(function (r) { toast(r.sent ? '설문을 보냈습니다.' : '보내지 않았습니다: ' + r.skipped.join(', '), !r.sent); openProject(p.ID, 'survey'); });
+    };
+    return;
+  }
+  if (s === 'fee') {
+    var mf = ex.settlements || [];
+    el.innerHTML = '<div class="section"><h3>이 사업장 정산</h3>' + (mf.length ? '<table class="t"><thead><tr><th>항목</th><th>금액</th><th>상태</th><th>발생일</th><th>지급일</th></tr></thead><tbody>' + mf.map(function (f) {
+      return '<tr><td>' + esc(f['항목']) + '</td><td>' + won(f['금액']) + '원</td><td>' + badge(f['상태']) + '</td><td>' + esc(f['발생일']) + '</td><td>' + esc(f['지급일']) + '</td></tr>'; }).join('') + '</tbody></table>' : '<p class="muted small">아직 정산 내역이 없습니다.</p>') + '</div>';
+  }
+}
+
+/* ---------- 검수 체크리스트 ---------- */
+function checklistView(r, admin) {
+  var saved = parseFiles(r['체크리스트']);
+  var items = admin ? (S.options.체크리스트 || {})[r['종류']] || [] : [];
+  if (!admin) {
+    if (!saved.length) return '';
+    var bad = saved.filter(function (x) { return x['결과'] === '부적합'; });
+    return '<div class="small" style="margin-top:6px">체크리스트: 적합 ' + saved.filter(function (x) { return x['결과'] === '적합'; }).length + ' · <b style="color:var(--bad)">부적합 ' + bad.length + '</b></div>';
+  }
+  var map = {}; saved.forEach(function (x) { map[x['항목']] = x; });
+  var all = items.concat(saved.map(function (x) { return x['항목']; }).filter(function (t) { return items.indexOf(t) < 0; }));
+  if (!all.length) return '';
+  return '<details style="margin-top:8px"' + (r['검수결과'] === '검수 중' ? ' open' : '') + '><summary class="small" style="cursor:pointer"><b>검수 체크리스트</b> (' + all.length + '개 항목)</summary><div data-cl="' + esc(r.ID) + '">' +
+    all.map(function (t) {
+      var v = map[t] || {};
+      return '<div class="cl-row" data-cli="' + esc(t) + '"><span>' + esc(t) + '</span><select>' + opts([''].concat(S.options.체크결과), v['결과'] || '') + '</select><input placeholder="메모(부적합 사유)" value="' + esc(v['메모'] || '') + '"></div>';
+    }).join('') + '<div class="row" style="margin-top:6px"><button class="btn sm" data-clall="' + esc(r.ID) + '" type="button">모두 적합</button><span class="small muted">부적합 항목은 검수 의견에 자동으로 정리되어 메일로 갑니다.</span></div></div></details>';
+}
+function readChecklist(el, id) {
+  var box = $('[data-cl="' + id + '"]', el);
+  if (!box) return null;
+  return $$('[data-cli]', box).map(function (row) { return { 항목: row.dataset.cli, 결과: $('select', row).value, 메모: $('input', row).value }; }).filter(function (x) { return x['결과']; });
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-clall]');
+  if (!b) return;
+  $$('[data-cl="' + b.dataset.clall + '"] .cl-row select').forEach(function (s) { if (!s.value) s.value = '적합'; });
+});
+
+/* ---------- 배정 추천 ---------- */
+function showRecommend(d, appId) {
+  run('추천 계산 중...', 'adminRecommend', tok(), appId).then(function (r) {
+    $('#recBox', d).innerHTML = '<div class="small muted" style="margin:8px 0">사업장 지역: <b>' + esc(r.region || '미상') + '</b> · 점수 = 희망 컨설턴트 + 활동지역 일치 − 진행 건수 + 교육 이수 + 만족도</div>' +
+      '<table class="t"><tbody>' + r.list.map(function (c) {
+        return '<tr><td><b>' + esc(c.성명) + '</b> <span class="small muted">' + esc(c.구분) + '</span><div class="small muted">' + esc(c.근거) + '</div></td><td class="nowrap"><b>' + c.점수 + '</b>점</td><td><button class="btn sm" data-rec="' + esc(c.ID) + '" type="button">추가</button></td></tr>';
+      }).join('') + '</tbody></table>';
+    $$('[data-rec]', d).forEach(function (b) { b.onclick = function () {
+      var pick = $('.cpick', d), ids = pick.dataset.ids.split(',').filter(String);
+      if (ids.indexOf(b.dataset.rec) < 0) ids.push(b.dataset.rec);
+      pick.dataset.ids = ids.join(','); bindCpick(d); toast('추가했습니다.');
+    }; });
+  });
+}
+
+/* ---------- 교육 (관리자) ---------- */
+var EDU_DEFS = [['교육명', 'text', null, '교육명', true], ['일자', 'date'], ['시간', 'number', null, '교육 시간(h)'], ['방식', 'select', ['대면', '비대면', '온라인']], ['장소'], ['정원', 'number'],
+  ['신청시작', 'date'], ['신청마감', 'date'], ['상태', 'select', ['모집', '마감', '종료']], ['필수', 'select', ['', 'Y', 'N'], '필수 여부'], ['설명', 'textarea']];
+function renderEduAdmin() {
+  run('불러오는 중...', 'listTrainings', tok()).then(function (list) {
+    S.trainings = list;
+    $('#view').innerHTML = '<div class="filters"><b>교육과정</b><span class="count">' + list.length + '개</span><span class="grow"></span><button class="btn sm primary" id="eNew">+ 교육 개설</button></div><div id="eList"></div>';
+    table($('#eList'), 'edu', [
+      { k: '일자', nw: 1 }, { k: '교육명', f: function (t) { return '<b>' + esc(t['교육명']) + '</b>' + (t['필수'] === 'Y' ? ' <span class="badge b-warn">필수</span>' : ''); } },
+      { k: '방식' }, { k: '시간', l: '시간(h)' }, { k: '상태', f: function (t) { return badge(t['상태'] || '모집') + (t._신청가능 ? ' <span class="badge b-ok">신청중</span>' : ''); } },
+      { k: '신청마감', l: '마감', nw: 1 }, { k: '_신청', l: '신청/정원', f: function (t) { return t._신청 + (t['정원'] ? ' / ' + esc(t['정원']) : ''); }, s: function (t) { return t._신청; } },
+      { k: '_수료', l: '이수', s: function (t) { return t._수료; } }
+    ], list, function (t) { openEdu(t.ID); });
+    $('#eNew').onclick = function () { openEdu(''); };
+  });
+}
+function openEdu(id) {
+  if (!id) {
+    var d0 = drawer('교육 개설', '<div class="section"><div class="grid2" id="eForm">' + fieldsHtml(EDU_DEFS, { 상태: '모집', 방식: '대면' }) + '</div><div class="row" style="margin-top:12px"><button class="btn primary" id="eSave">개설</button><span class="small muted">개설 후 [공지·문의 → 공지]로 안내하면 컨설턴트가 [교육] 탭에서 신청합니다.</span></div></div>');
+    $('#eSave', d0).onclick = function () { run('저장 중...', 'adminSaveTrainingFull', tok(), readFields($('#eForm', d0))).then(function () { closeDrawer(); renderEduAdmin(); toast('개설했습니다.'); }); };
+    return;
+  }
+  run('불러오는 중...', 'adminTrainingDetail', tok(), id).then(function (r) {
+    var t = r.training;
+    var h = '<div class="section"><h3>교육 정보</h3><div class="grid2" id="eForm">' + fieldsHtml(EDU_DEFS, t) + '</div><div class="row" style="margin-top:12px"><button class="btn primary" id="eSave">저장</button></div></div>';
+    h += '<div class="section"><h3>신청자 ' + r.applicants.length + '명</h3>' + (r.applicants.length ? '<table class="t"><thead><tr><th><input type="checkbox" id="eAll" style="width:auto"></th><th>성명</th><th>상태</th><th>신청일</th><th>이수(h)</th></tr></thead><tbody>' +
+      r.applicants.map(function (a) { return '<tr><td><input type="checkbox" data-ea="' + esc(a['컨설턴트ID']) + '" style="width:auto"' + (a['상태'] === '신청' ? ' checked' : '') + '></td><td>' + esc(a['성명']) + '</td><td>' + badge(a['상태']) + '</td><td class="small">' + esc(a['신청일']) + '</td><td>' + esc(a['이수시간']) + '</td></tr>'; }).join('') +
+      '</tbody></table><div class="row" style="margin-top:10px">선택한 인원을 <input id="eHrs" type="number" style="width:80px" value="' + esc(t['시간']) + '" placeholder="시간">시간 <button class="btn sm primary" id="eDone">수료 처리</button><button class="btn sm" id="eNo">불참 처리</button>' +
+      '<button class="btn sm" id="eMail">신청자에게 메일</button></div><p class="small muted">수료 처리하면 컨설턴트별 교육 이수 시간에 자동 반영됩니다.</p>' : '<p class="muted small">아직 신청자가 없습니다.</p>') + '</div>';
+    var d = drawer(esc(t['교육명']), h);
+    var picked = function () { return $$('[data-ea]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.ea; }); };
+    $('#eSave', d).onclick = function () { var v = readFields($('#eForm', d)); v.ID = id; run('저장 중...', 'adminSaveTrainingFull', tok(), v).then(function () { toast('저장했습니다.'); renderEduAdmin(); }); };
+    if ($('#eAll', d)) $('#eAll', d).onchange = function () { var on = this.checked; $$('[data-ea]', d).forEach(function (c) { c.checked = on; }); };
+    if ($('#eDone', d)) $('#eDone', d).onclick = function () { if (!picked().length) return toast('인원을 선택해 주세요.', true); run('처리 중...', 'adminSetAttendance', tok(), id, picked(), true, $('#eHrs', d).value).then(function () { toast('수료 처리했습니다.'); openEdu(id); reload('consultants'); }); };
+    if ($('#eNo', d)) $('#eNo', d).onclick = function () { if (!picked().length) return toast('인원을 선택해 주세요.', true); run('처리 중...', 'adminSetAttendance', tok(), id, picked(), false, '').then(function () { openEdu(id); }); };
+    if ($('#eMail', d)) $('#eMail', d).onclick = function () {
+      var list = r.applicants.filter(function (a) { return picked().indexOf(a['컨설턴트ID']) >= 0 && a['이메일']; }).map(function (a) { return { email: a['이메일'], id: a['컨설턴트ID'], vars: { 성명: a['성명'] } }; });
+      var body = prompt('메일 본문 ({{성명}} 사용 가능)', '{{성명}} 컨설턴트님, [' + t['교육명'] + '] 교육 안내드립니다.\n일시: ' + t['일자'] + '\n장소: ' + (t['장소'] || ''));
+      if (body) run('발송 중...', 'adminSendMail', tok(), list, '[교육 안내] ' + t['교육명'], body).then(function (x) { toast(x.sent + '명에게 보냈습니다.'); });
+    };
+  });
+}
+
+/* ---------- 교육 (컨설턴트) ---------- */
+function renderEduCons() {
+  run('불러오는 중...', 'listTrainings', tok()).then(function (list) {
+    var open = list.filter(function (t) { return t._신청가능 || t._내신청 === '신청'; }), past = list.filter(function (t) { return open.indexOf(t) < 0; });
+    var card = function (t) {
+      return '<div class="pcard" style="cursor:default"><div class="row"><h3 class="grow">' + esc(t['교육명']) + '</h3>' + (t['필수'] === 'Y' ? '<span class="badge b-warn">필수</span>' : '') + badge(t._내신청 || (t._신청가능 ? '' : t['상태'])) + '</div>' +
+        '<div class="small muted">' + esc(t['일자']) + ' · ' + esc(t['방식'] || '') + ' · ' + esc(t['장소'] || '') + (t['시간'] ? ' · ' + esc(t['시간']) + '시간' : '') + '</div>' +
+        (t['신청마감'] ? '<div class="small">신청 마감 ' + esc(t['신청마감']) + (t['정원'] ? ' · 정원 ' + esc(t['정원']) + '명 (신청 ' + t._신청 + ')' : '') + '</div>' : '') +
+        (t['설명'] ? '<div class="small" style="white-space:pre-wrap;margin-top:6px">' + esc(t['설명']) + '</div>' : '') +
+        (t._내이수 ? '<div class="small" style="margin-top:6px"><span class="badge b-ok">이수 ' + esc(t._내이수) + '시간</span></div>' : '') +
+        '<div class="row" style="margin-top:8px">' + (t._내신청 === '신청' ? '<button class="btn sm danger" data-ecx="' + esc(t.ID) + '">신청 취소</button>' : t._신청가능 ? '<button class="btn sm primary" data-eap="' + esc(t.ID) + '">신청하기</button>' : '') + '</div></div>';
+    };
+    $('#view').innerHTML = '<h2 style="font-size:17px;margin:0 0 10px">신청 가능한 교육</h2><div class="pcards">' + (open.map(card).join('') || '<div class="card muted">현재 모집 중인 교육이 없습니다.</div>') + '</div>' +
+      '<h2 style="font-size:17px;margin:20px 0 10px">지난 교육 · 이수 현황 (총 ' + (S.totalHours || 0) + '시간)</h2><div class="pcards">' + (past.map(card).join('') || '<div class="card muted">없음</div>') + '</div>';
+    $$('[data-eap]').forEach(function (b) { b.onclick = function () { run('신청 중...', 'applyTraining', tok(), b.dataset.eap, false).then(function () { toast('신청했습니다.'); renderEduCons(); }); }; });
+    $$('[data-ecx]').forEach(function (b) { b.onclick = function () { if (confirm('신청을 취소할까요?')) run('취소 중...', 'applyTraining', tok(), b.dataset.ecx, true).then(function () { renderEduCons(); }); }; });
+  });
+}
+
+/* ---------- 정산 (관리자) ---------- */
+function renderFeeAdmin() {
+  run('불러오는 중...', 'adminListSettlements', tok()).then(function (r) {
+    S.fees = r;
+    var f = S.f.fee = S.f.fee || { 연도: S.year };
+    var years = uniq(r.list.map(function (x) { return x._연도; })).sort();
+    var h = '<div class="section"><h3>수당 기준</h3><p class="small muted" style="margin-top:0">보고서가 검수완료되면 금액이 있는 항목마다 담당 컨설턴트별 정산 내역이 생깁니다. 분배: 균등(컨설턴트 수로 나눔) / 전액(각자 전액).</p>' +
+      '<table class="t" id="ruleTbl"><thead><tr><th>항목</th><th>보고서</th><th>금액(원)</th><th>분배</th><th>비고</th></tr></thead><tbody>' +
+      r.rules.concat([{}, {}]).map(function (x) {
+        return '<tr><td><input data-rk="항목" value="' + esc(x['항목'] || '') + '"></td><td><select data-rk="보고서">' + opts(['중간', '최종', '사후'], x['보고서'] || '중간') + '</select></td><td><input data-rk="금액" value="' + esc(x['금액'] || '') + '" inputmode="numeric"></td>' +
+          '<td><select data-rk="분배">' + opts(['균등', '전액'], x['분배'] || '균등') + '</select></td><td><input data-rk="비고" value="' + esc(x['비고'] || '') + '"></td></tr>';
+      }).join('') + '</tbody></table><div class="row" style="margin-top:8px"><button class="btn sm primary" id="ruleSave">기준 저장</button><button class="btn sm" id="feeRebuild">정산 대상 다시 계산</button><span class="small muted">Lark에서 넘어온 검수완료 건이나 기준을 바꾼 뒤에 누르세요.</span></div></div>';
+    h += '<div class="filters"><select data-ff="연도">' + opts(years, f['연도'], '전체 연도') + '</select><select data-ff="상태">' + opts(S.options.정산상태, f['상태'], '전체 상태') + '</select>' +
+      '<input type="search" data-ff="q" placeholder="컨설턴트·사업장·구매처코드" value="' + esc(f.q || '') + '"><span class="count" id="feeCnt"></span><span class="grow"></span>' +
+      '<select id="feeBulk" style="width:auto"><option value="">선택 항목 상태 변경</option>' + S.options.정산상태.map(function (x) { return '<option>' + x + '</option>'; }).join('') + '</select>' +
+      '<button class="btn sm" id="feeXls">엑셀(내역)</button><button class="btn sm" id="feeSum">엑셀(구매처코드별 합계)</button></div><div id="feeList"></div><div class="section" style="margin-top:12px"><h3>컨설턴트별 합계</h3><div id="feeTotals"></div></div>';
+    $('#view').innerHTML = h;
+    var filtered = function () {
+      var q = (f.q || '').toLowerCase();
+      return r.list.filter(function (x) { return (!f['연도'] || x._연도 === f['연도']) && (!f['상태'] || x['상태'] === f['상태']) && (!q || [x._컨설턴트명, x._사업장명, x._구매처코드].join(' ').toLowerCase().indexOf(q) >= 0); });
+    };
+    var totals = function (rows) {
+      var m = {};
+      rows.forEach(function (x) { var k = x['컨설턴트ID'], o = m[k] = m[k] || { 성명: x._컨설턴트명, 구매처코드: x._구매처코드, 건수: 0, 합계: 0, 지급완료: 0, 미지급: 0 };
+        var a = Number(x['금액']) || 0; o.건수++; o.합계 += a; if (x['상태'] === '지급완료') o.지급완료 += a; else if (x['상태'] !== '보류') o.미지급 += a; });
+      return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.합계 - a.합계; });
+    };
+    var draw = function () {
+      var rows = filtered();
+      $('#feeCnt').textContent = rows.length + '건 · ' + won(rows.reduce(function (s, x) { return s + (Number(x['금액']) || 0); }, 0)) + '원';
+      $('#feeList').innerHTML = '<div class="tablewrap" style="max-height:420px"><table class="t"><thead><tr><th><input type="checkbox" id="feeAll" style="width:auto"></th><th>발생일</th><th>컨설턴트</th><th>구매처코드</th><th>사업장</th><th>차수</th><th>항목</th><th>금액</th><th>상태</th><th>지급일</th></tr></thead><tbody>' +
+        rows.map(function (x) { return '<tr><td><input type="checkbox" data-fid="' + esc(x.ID) + '" style="width:auto"></td><td class="nowrap">' + esc(x['발생일']) + '</td><td>' + esc(x._컨설턴트명) + '</td><td>' + esc(x._구매처코드) + '</td><td>' + esc(x._사업장명) + '</td><td>' + esc(x._차수) + '</td><td>' + esc(x['항목']) + '</td><td class="nowrap">' + won(x['금액']) + '</td><td>' + badge(x['상태']) + '</td><td class="nowrap">' + esc(x['지급일']) + '</td></tr>'; }).join('') +
+        (rows.length ? '' : '<tr><td colspan="10" class="muted" style="text-align:center;padding:24px">정산 내역이 없습니다. 수당 기준에 금액을 넣고 \'다시 계산\'을 누르세요.</td></tr>') + '</tbody></table></div>';
+      $('#feeTotals').innerHTML = '<table class="t"><thead><tr><th>컨설턴트</th><th>구매처코드</th><th>건수</th><th>합계</th><th>지급완료</th><th>미지급</th></tr></thead><tbody>' + totals(rows).map(function (o) {
+        return '<tr><td>' + esc(o.성명) + '</td><td>' + esc(o.구매처코드) + '</td><td>' + o.건수 + '</td><td>' + won(o.합계) + '</td><td>' + won(o.지급완료) + '</td><td>' + won(o.미지급) + '</td></tr>'; }).join('') + '</tbody></table>';
+      $('#feeAll').onchange = function () { var on = this.checked; $$('[data-fid]').forEach(function (c) { c.checked = on; }); };
+      return rows;
+    };
+    $$('[data-ff]').forEach(function (el) { el[el.tagName === 'INPUT' ? 'oninput' : 'onchange'] = function () { f[el.dataset.ff] = el.value; draw(); }; });
+    $('#ruleSave').onclick = function () {
+      var rules = $$('#ruleTbl tbody tr').map(function (tr) { var o = {}; $$('[data-rk]', tr).forEach(function (i) { o[i.dataset.rk] = i.value; }); return o; });
+      run('저장 중...', 'adminSaveFeeRules', tok(), rules).then(function () { toast('기준을 저장했습니다.'); renderFeeAdmin(); });
+    };
+    $('#feeRebuild').onclick = function () { run('계산 중...', 'adminRebuildSettlements', tok()).then(function (x) { toast('새 정산 ' + x.created + '건 생성'); renderFeeAdmin(); }); };
+    $('#feeBulk').onchange = function () {
+      var st = this.value, ids = $$('[data-fid]').filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.fid; });
+      this.value = '';
+      if (!st) return; if (!ids.length) return toast('항목을 선택해 주세요.', true);
+      if (confirm(ids.length + '건을 \'' + st + '\'(으)로 바꿀까요?')) run('저장 중...', 'adminUpdateSettlements', tok(), ids, { 상태: st }).then(function () { renderFeeAdmin(); });
+    };
+    $('#feeXls').onclick = function () { exportXlsx('정산내역', [{ k: '발생일' }, { k: '_컨설턴트명', l: '컨설턴트' }, { k: '_구매처코드', l: '구매처코드' }, { k: '_사업장명', l: '사업장' }, { k: '_차수', l: '차수' }, { k: '항목' }, { k: '금액' }, { k: '상태' }, { k: '지급일' }, { k: '비고' }], filtered()); };
+    $('#feeSum').onclick = function () { exportXlsx('정산합계_구매처코드별', [{ k: '구매처코드' }, { k: '성명', l: '컨설턴트' }, { k: '건수' }, { k: '합계' }, { k: '지급완료' }, { k: '미지급' }], totals(filtered())); };
+    draw();
+  });
+}
+
+/* ---------- 정산 (컨설턴트) ---------- */
+function renderFeeCons() {
+  run('불러오는 중...', 'listMySettlements', tok()).then(function (list) {
+    var sum = function (st) { return list.filter(function (x) { return !st || x['상태'] === st; }).reduce(function (s, x) { return s + (Number(x['금액']) || 0); }, 0); };
+    $('#view').innerHTML = '<div class="kpis">' + kpi(won(sum()) + '원', '전체', list.length + '건') + kpi(won(sum('지급완료')) + '원', '지급완료', '') + kpi(won(sum('미지급') + sum('지급예정')) + '원', '지급 예정·미지급', '') + '</div>' +
+      '<div class="tablewrap"><table class="t"><thead><tr><th>발생일</th><th>사업장</th><th>차수</th><th>항목</th><th>금액</th><th>상태</th><th>지급일</th></tr></thead><tbody>' +
+      (list.map(function (x) { return '<tr><td>' + esc(x['발생일']) + '</td><td>' + esc(x._사업장명) + '</td><td>' + esc(x._차수) + '</td><td>' + esc(x['항목']) + '</td><td>' + won(x['금액']) + '원</td><td>' + badge(x['상태']) + '</td><td>' + esc(x['지급일']) + '</td></tr>'; }).join('') ||
+        '<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">정산 내역이 없습니다. 보고서가 검수완료되면 생깁니다.</td></tr>') + '</tbody></table></div>';
+  });
+}
+
+/* ---------- 월간 실적 ---------- */
+function renderReportAdmin(ym) {
+  ym = ym || S.reportYm || TODAY.slice(0, 7); S.reportYm = ym;
+  run('집계 중...', 'adminMonthlyReport', tok(), ym).then(function (st) {
+    var tbl = function (head, rows) { return '<table class="t"><thead><tr>' + head.map(function (x) { return '<th>' + esc(x) + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>'; };
+    $('#view').innerHTML = '<div class="filters no-print">' + monthNav(ym) + '<span class="grow"></span><button class="btn sm" id="rPrint">인쇄 / PDF</button><button class="btn sm primary" id="rXls">엑셀</button></div>' +
+      '<div class="section"><h3 style="font-size:18px">' + esc(st.label) + ' 산업일자리전환 컨설팅 실적</h3><p class="small muted" style="margin-top:0">집계 ' + esc(st.generated) + '</p>' +
+      '<div class="kpis">' + kpi(st.rows[0][1], '신청 접수(해당 월)', '연 누계 ' + st.rows[0][2]) + kpi(st.rows[3][1], '착수(해당 월)', '연 누계 ' + st.rows[3][2]) +
+      kpi(st.만족도평균 || '-', '만족도 평균', '응답 ' + st.rows.filter(function (r) { return r[0] === '만족도 응답'; })[0][1] + '건') + kpi(won(st.정산지급) + '원', '정산 지급(해당 월)', '발생 ' + won(st.정산발생) + '원') + '</div>' +
+      tbl(['항목', st.label, st.ym.slice(0, 4) + '년 누계'], st.rows) + '</div>' +
+      '<div class="dash"><div class="section"><h3>차수별 진행</h3>' + tbl(['차수', '사업장', '중간 완료', '최종 완료', '사후 완료', '정책연계 Y'], st.byChasu.map(function (o) { return [o.차수, o.사업장, o.중간완료, o.최종완료, o.사후완료, o.정책연계]; })) + '</div>' +
+      bars('지역별 사업장', st.byRegion) + bars('정책연계 사업', st.polBiz) + '</div>';
+    bindMonthNav($('#view'), renderReportAdmin);
+    $('#rPrint').onclick = function () { window.print(); };
+    $('#rXls').onclick = function () { run('엑셀 만드는 중...', 'adminMonthlyReportXlsx', tok(), ym).then(function (x) { saveB64(x.b64, x.name, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); }); };
+  });
+}
+
+/* ---------- 공지·문의 (관리자) ---------- */
+function renderBoardAdmin(sub) {
+  sub = sub || S.boardSub || 'inq'; S.boardSub = sub;
+  $('#view').innerHTML = '<div class="subtabs"><button data-bs="inq"' + (sub === 'inq' ? ' class="on"' : '') + '>문의·요청</button><button data-bs="notice"' + (sub === 'notice' ? ' class="on"' : '') + '>공지·자료실</button></div><div id="bBody"></div>';
+  $$('[data-bs]').forEach(function (b) { b.onclick = function () { renderBoardAdmin(b.dataset.bs); }; });
+  if (sub === 'inq') return run('불러오는 중...', 'listInquiries', tok()).then(function (list) {
+    var f = S.f.inq = S.f.inq || { st: '미완료' };
+    var draw = function () {
+      var rows = list.filter(function (q) { return !f.st || (f.st === '미완료' ? q['상태'] !== '완료' : q['상태'] === f.st); });
+      $('#bList').innerHTML = '';
+      table($('#bList'), 'inq', [{ k: '작성일', nw: 1, f: function (q) { return esc(q['작성일'].slice(0, 16)); } }, { k: '상태', f: function (q) { return inqBadge(q['상태']); } },
+        { k: '유형' }, { k: '_컨설턴트명', l: '컨설턴트' }, { k: '_사업장명', l: '사업장' }, { k: '제목', f: function (q) { return '<b>' + esc(q['제목']) + '</b>'; } }], rows, function (q) { openInq(q, list); });
+    };
+    $('#bBody').innerHTML = '<div class="filters"><select id="iSt">' + opts(['미완료', '접수', '처리중', '완료'], f.st, '전체') + '</select><span class="count">' + list.length + '건</span></div><div id="bList"></div>';
+    $('#iSt').onchange = function () { f.st = this.value; draw(); };
+    draw();
+  });
+  run('불러오는 중...', 'listNotices', tok()).then(function (list) {
+    $('#bBody').innerHTML = '<div class="filters"><span class="count">' + list.length + '건</span><span class="grow"></span><button class="btn sm primary" id="nNew">+ 새 글</button></div><div id="bList"></div>';
+    table($('#bList'), 'notice', [{ k: '게시일', nw: 1, f: function (n) { return esc(String(n['게시일']).slice(0, 10)); } }, { k: '구분', f: function (n) { return badge(n['구분']) + (n['고정'] === 'Y' ? ' 📌' : ''); } },
+      { k: '대상' }, { k: '제목', f: function (n) { return '<b>' + esc(n['제목']) + '</b>' + (parseFiles(n['첨부']).length ? ' 📎' : ''); } }, { k: '_읽음', l: '읽음', f: function (n) { return n._읽음 + ' / ' + n._대상수; }, s: function (n) { return n._읽음; } }], list, function (n) { openNotice(n); });
+    $('#nNew').onclick = function () { openNotice(null); };
+  });
+}
+function openInq(q, list) {
+  var d = drawer(esc(q['제목']), '<div class="section"><div class="row small muted">' + badge(q['유형']) + esc(q['_컨설턴트명']) + ' · ' + esc(q['_사업장명'] || '사업장 미지정') + ' · ' + esc(q['작성일']) + '</div>' +
+    '<div style="white-space:pre-wrap;margin-top:10px">' + esc(q['내용']) + '</div>' + filesHtml(q['첨부'], false) + '</div>' +
+    '<div class="section"><h3>답변</h3><textarea id="iAns" style="min-height:120px">' + esc(q['답변']) + '</textarea><div class="row" style="margin-top:8px"><select id="iSt2" style="width:auto">' + opts(S.options.문의상태, q['상태'] === '접수' ? '완료' : q['상태']) + '</select>' +
+    '<button class="btn primary" id="iSave">답변 저장 (메일 발송)</button>' + (q['사업장ID'] ? '<button class="btn" id="iGo">사업장 열기</button>' : '') + '</div>' + (q['답변일'] ? '<p class="small muted">' + esc(q['답변자']) + ' · ' + esc(q['답변일']) + '</p>' : '') + '</div>');
+  $('#iSave', d).onclick = function () { run('저장 중...', 'adminAnswerInquiry', tok(), q.ID, $('#iAns', d).value, $('#iSt2', d).value).then(function () { closeDrawer(); toast('답변을 저장했습니다.'); renderBoardAdmin('inq'); }); };
+  if ($('#iGo', d)) $('#iGo', d).onclick = function () { openProject(q['사업장ID']); };
+}
+function openNotice(n) {
+  n = n || { 구분: '공지', 대상: '전체', 고정: '' };
+  var d = drawer(n.ID ? '글 수정' : '새 글', '<div class="section"><div class="grid3" id="nForm">' + fieldsHtml([['구분', 'select', S.options.공지구분], ['대상', 'select', S.options.공지대상], ['고정', 'select', ['', 'Y'], '상단 고정']], n) + '</div>' +
+    '<div class="grid2" style="margin-top:10px" id="nForm2">' + fieldsHtml([['제목', 'text', null, '제목', true], ['내용', 'textarea']], n) + '</div>' +
+    '<div class="field" style="margin-top:10px"><label>첨부</label>' + filesHtml(n['첨부'], false) + '<input type="file" multiple id="nFiles"></div>' +
+    '<label class="row small" style="margin-top:10px"><input type="checkbox" id="nMail" style="width:auto"' + (n.ID ? '' : ' checked') + '> 대상 컨설턴트에게 메일로 알림 (메일 한도 사용)</label>' +
+    '<div class="row" style="margin-top:12px"><button class="btn primary" id="nSave">게시</button>' + (n.ID ? '<span class="grow"></span><button class="btn danger" id="nDel">삭제</button>' : '') + '</div></div>');
+  $('#nSave', d).onclick = function () {
+    var v = Object.assign(readFields($('#nForm', d)), readFields($('#nForm2', d))); v.ID = n.ID || '';
+    readFiles($('#nFiles', d), S.maxMb).then(function (files) { return run('게시 중...', 'adminSaveNotice', tok(), v, files, $('#nMail', d).checked); })
+      .then(function (r) { closeDrawer(); toast('게시했습니다.' + (r.sent ? ' 알림 ' + r.sent + '통' : '')); renderBoardAdmin('notice'); }, function (e) { toast(e.message, true); });
+  };
+  if ($('#nDel', d)) $('#nDel', d).onclick = function () { if (confirm('삭제할까요?')) run('삭제 중...', 'adminDeleteNotice', tok(), n.ID).then(function () { closeDrawer(); renderBoardAdmin('notice'); }); };
+}
+
+/* ---------- 공지·자료 (컨설턴트) ---------- */
+function renderNoticeCons() {
+  run('불러오는 중...', 'listNotices', tok()).then(function (list) {
+    $('#view').innerHTML = '<div class="section"><h3>공지·자료실</h3>' + (list.map(function (n) {
+      return '<div class="nitem' + (n._읽음 ? '' : ' unread') + '" data-nid="' + esc(n.ID) + '"><div class="row">' + badge(n['구분']) + (n['고정'] === 'Y' ? '📌' : '') + '<b>' + esc(n['제목']) + '</b>' + (n._읽음 ? '' : '<span class="badge b-info">새 글</span>') +
+        (parseFiles(n['첨부']).length ? '📎' : '') + '<span class="grow"></span><span class="small muted">' + esc(String(n['게시일']).slice(0, 10)) + '</span></div><div class="body">' + esc(n['내용']) + filesHtml(n['첨부'], false) + '</div></div>';
+    }).join('') || '<p class="muted">게시물이 없습니다.</p>') + '</div>';
+    $$('[data-nid]').forEach(function (it) { it.onclick = function (e) {
+      if (e.target.closest('[data-dl]') || e.target.closest('.body')) return;
+      it.classList.toggle('open');
+      if (it.classList.contains('unread')) { it.classList.remove('unread'); call('markNoticeRead', tok(), it.dataset.nid).then(function () { S.badges.공지 = Math.max(0, (S.badges.공지 || 1) - 1); }); }
+    }; });
+  });
+}
+
+/* ---------- 문의 (컨설턴트) ---------- */
+function renderInqCons() {
+  run('불러오는 중...', 'listInquiries', tok()).then(function (list) {
+    $('#view').innerHTML = '<div class="section"><h3>새 문의·요청</h3><div class="grid2" id="qForm">' +
+      '<div class="field"><label>사업장 (선택)</label><select data-k="사업장ID"><option value="">사업장 무관</option>' + S.projects.map(function (p) { return '<option value="' + esc(p.ID) + '">' + esc(p['사업장명']) + '</option>'; }).join('') + '</select></div>' +
+      fieldsHtml([['유형', 'select', S.options.문의유형], ['제목', 'text', null, '제목', true], ['내용', 'textarea']], { 유형: '질문' }) +
+      '<div class="field full"><label>첨부</label><input type="file" multiple id="qFiles"></div></div><div class="row" style="margin-top:10px"><button class="btn primary" id="qSend">등록</button><span class="small muted">답변이 등록되면 메일로 알려 드립니다.</span></div></div>' +
+      '<div class="section"><h3>내 문의 ' + list.length + '건</h3>' + (list.map(function (q) {
+        return '<div class="card" style="padding:12px;margin-bottom:8px"><div class="row">' + badge(q['유형']) + '<b>' + esc(q['제목']) + '</b><span class="grow"></span>' + inqBadge(q['상태']) + '<span class="small muted">' + esc(q['작성일'].slice(0, 10)) + '</span></div>' +
+          '<div class="small" style="white-space:pre-wrap;margin-top:6px">' + esc(q['내용']) + '</div>' + (q['답변'] ? '<div class="notice-box small" style="margin-top:8px"><b>답변</b> (' + esc(q['답변일'].slice(0, 10)) + ')\n' + esc(q['답변']) + '</div>' : '') + '</div>';
+      }).join('') || '<p class="muted small">문의 내역이 없습니다.</p>') + '</div>';
+    $('#qSend').onclick = function () {
+      var v = readFields($('#qForm'));
+      readFiles($('#qFiles'), S.maxMb).then(function (files) { return run('등록 중...', 'createInquiry', tok(), v, files); }).then(function () { toast('등록했습니다.'); renderInqCons(); }, function (e) { toast(e.message, true); });
+    };
+  });
+}
+
+/* ---------- 문자 설정 (설정 탭) ---------- */
+function drawSmsBox() {
+  call('adminSmsStatus', tok()).then(function (st) {
+    var box = $('#smsBox'); if (!box) return;
+    box.innerHTML = '<h3>문자 설정 (솔라피)</h3><p class="small muted" style="margin-top:0">솔라피(solapi.com) 가입 → API Key 발급 → 발신번호 등록 후 아래에 키를 넣고, 설정의 SMS_ENABLED=Y, SMS_SENDER(발신번호)를 저장하세요. 키는 시트가 아닌 스크립트 속성에 저장됩니다.</p>' +
+      '<div class="row" style="margin-bottom:8px">상태 ' + (st.ready ? '<span class="badge b-ok">사용 가능</span>' : '<span class="badge b-gray">꺼짐</span>') + (st.hasKey ? ' <span class="badge b-info">API 키 저장됨</span>' : ' <span class="badge b-warn">API 키 없음</span>') +
+      (st.enabled ? '' : ' <span class="small muted">SMS_ENABLED=N</span>') + (st.sender ? '' : ' <span class="small muted">발신번호 없음</span>') + '</div>' +
+      '<div class="grid3"><div class="field"><label>API Key</label><input id="smsKey" placeholder="' + (st.hasKey ? '(저장됨 — 바꿀 때만 입력)' : 'NCS...') + '"></div><div class="field"><label>API Secret</label><input id="smsSec" type="password"></div><div class="field"><label>테스트 받을 번호</label><input id="smsTo" placeholder="010-0000-0000"></div></div>' +
+      '<div class="row" style="margin-top:8px"><button class="btn sm" id="smsSave">키 저장</button><button class="btn sm" id="smsTest"' + (st.ready ? '' : ' disabled') + '>테스트 발송</button></div>';
+    $('#smsSave').onclick = function () { run('저장 중...', 'adminSaveSmsKeys', tok(), $('#smsKey').value, $('#smsSec').value).then(function () { toast('저장했습니다.'); drawSmsBox(); }); };
+    $('#smsTest').onclick = function () { run('발송 중...', 'adminSmsTest', tok(), $('#smsTo').value).then(function () { toast('테스트 문자를 보냈습니다.'); }); };
+  });
+}
+
+/* ---------- 사업장 목록 확장: 서류 열·필터, 만족도 설문 일괄 발송 ---------- */
+PROJ_COLS.splice(PROJ_COLS.length - 1, 0, { k: '_서류', l: '서류', f: function (p) { var s = p._서류 || {}; return s.전체 ? '<span class="badge ' + (s.확인 === s.전체 ? 'b-ok' : s.누락 + s.반려 ? 'b-warn' : 'b-info') + '">' + (s.확인 || 0) + '/' + s.전체 + '</span>' : ''; }, s: function (p) { return (p._서류 || {}).확인 || 0; }, x: function (p) { var s = p._서류 || {}; return (s.확인 || 0) + '/' + (s.전체 || 0); } });
+PROJ_COLS.splice(PROJ_COLS.length - 1, 0, { k: '_만족도', l: '만족도', f: function (p) { return p._만족도 ? '<b>' + p._만족도.평균 + '</b>' : ''; }, s: function (p) { return p._만족도 ? p._만족도.평균 : 0; }, x: function (p) { return p._만족도 ? p._만족도.평균 : ''; } });
+var _filterProjects0 = filterProjects;
+filterProjects = function () {
+  var rows = _filterProjects0(), f = S.f.proj || {};
+  if (f.서류 === '누락·반려') rows = rows.filter(function (p) { var s = p._서류 || {}; return (s.누락 || 0) + (s.반려 || 0) > 0; });
+  if (f.서류 === '확인 대기') rows = rows.filter(function (p) { return ((p._서류 || {}).대기 || 0) > 0; });
+  if (f.서류 === '완료') rows = rows.filter(function (p) { var s = p._서류 || {}; return s.전체 && s.확인 === s.전체; });
+  return rows;
+};
+var _renderProjects0 = renderProjects;
+renderProjects = function () {
+  _renderProjects0();
+  var f = S.f.proj, bar = $('.filters');
+  var sel = document.createElement('select'); sel.innerHTML = opts(['누락·반려', '확인 대기', '완료'], f.서류, '서류 전체'); sel.style.width = 'auto';
+  sel.onchange = function () { f.서류 = sel.value; drawProjects(); };
+  bar.insertBefore(sel, $('[data-f=q]', bar));
+  var b = document.createElement('button'); b.className = 'btn sm'; b.textContent = '만족도 설문 발송';
+  b.onclick = function () {
+    var rows = filterProjects().filter(function (p) { return p['최종검수'] === '검수완료' && !p._만족도; });
+    if (!rows.length) return toast('현재 목록에 최종보고 검수완료 + 미응답 사업장이 없습니다.', true);
+    if (!confirm('현재 목록 중 최종보고 검수완료 사업장 ' + rows.length + '곳 담당자에게 설문을 보낼까요? (이미 보낸 곳은 건너뜀)')) return;
+    run('발송 중...', 'adminSendSurvey', tok(), rows.map(function (p) { return p.ID; }), false).then(function (r) { toast(r.sent + '곳 발송' + (r.skipped.length ? ' · 건너뜀 ' + r.skipped.length : '')); });
+  };
+  bar.insertBefore(b, $('#xls', bar));
+  drawProjects();
+};
+</script>

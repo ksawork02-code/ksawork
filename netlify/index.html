@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>산업일자리전환 컨설팅 관리</title>
+<meta name="description" content="한국표준협회 산업일자리전환 컨설팅 신청·관리">
+<meta property="og:title" content="산업일자리전환 컨설팅">
+<meta property="og:description" content="컨설팅 신청 · 사전접수 · 컨설턴트 신청 · 관리자/컨설턴트 로그인">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root { --brand: #1f3a5f; --bg: #f4f6f9; --muted: #6b7686; }
+  html, body { margin: 0; height: 100%; background: var(--bg); font-family: 'Noto Sans KR', system-ui, -apple-system, sans-serif; }
+  #app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+  #loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); font-size: 14px; background: var(--bg); z-index: 2; transition: opacity .25s; }
+  #loading.hide { opacity: 0; pointer-events: none; }
+  .spinner { width: 34px; height: 34px; border: 3px solid #cfdcec; border-top-color: #2f6db5; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #slow { display: none; text-align: center; line-height: 1.7; padding: 0 16px; }
+  #slow a, .card a { color: #2f6db5; font-weight: 500; }
+  .card { max-width: 520px; margin: 12vh auto 0; background: #fff; border: 1px solid #e3e7ee; border-radius: 10px; padding: 24px; color: #1d2633; line-height: 1.7; font-size: 14px; }
+  .card h1 { font-size: 18px; margin: 0 0 8px; color: var(--brand); }
+  .card ul { padding-left: 18px; }
+  code { background: #eef1f5; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+</style>
+<script src="/config.js"></script>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><div>불러오는 중...</div>
+  <div id="slow">화면이 열리지 않으면 <a id="direct" href="#" target="_blank" rel="noopener">새 창에서 열기</a>를 눌러 주세요.</div>
+</div>
+<script>
+(function () {
+  var C = window.APP_CONFIG || {};
+  // 경로 → 앱스크립트 page 값
+  var ROUTES = {
+    '': { page: '', title: '로그인' },
+    'login': { page: '', title: '로그인' },
+    'apply': { page: 'apply', title: '컨설팅 신청' },
+    'pre': { page: 'pre', title: '사전접수' },
+    'consultant': { page: 'consultant', title: '컨설턴트 신청' },
+    'status': { page: 'status', title: '신청 진행조회' },
+    'survey': { page: 'survey', title: '만족도 조사' }
+  };
+  var path = location.pathname.replace(/^\/+|\/+$/g, '').replace(/\.html$/, '').replace(/^index$/, '').toLowerCase();
+  var q = new URLSearchParams(location.search).get('page');
+  var route = ROUTES[q !== null ? q : path];
+  var appName = C.APP_NAME || '산업일자리전환 컨설팅 관리';
+
+  if (!route) {
+    document.title = '페이지를 찾을 수 없습니다 · ' + appName;
+    return show('<h1>페이지를 찾을 수 없습니다</h1><p>주소를 확인해 주세요.</p><ul>' +
+      '<li><a href="/apply">컨설팅 신청</a></li><li><a href="/pre">사전접수</a></li>' +
+      '<li><a href="/consultant">컨설턴트 신청</a></li><li><a href="/status">신청 진행조회</a></li><li><a href="/">로그인</a></li></ul>');
+  }
+  document.title = route.title + ' · ' + appName;
+
+  var base = String(C.WEBAPP_URL || '').trim();
+  if (!/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(base)) {
+    return show('<h1>설정이 필요합니다</h1><p><code>config.js</code>의 <code>WEBAPP_URL</code>에 앱스크립트 웹앱 주소(<code>…/exec</code>)를 넣고 다시 배포해 주세요.</p>');
+  }
+  var t = (new URLSearchParams(location.search).get('t') || '').replace(/[^0-9a-fA-F]/g, '');
+  var src = base + (route.page ? '?page=' + encodeURIComponent(route.page) + (t ? '&t=' + t : '') : '');
+  document.getElementById('direct').href = src;
+
+  var f = document.createElement('iframe');
+  f.id = 'app';
+  f.src = src;
+  f.title = route.title;
+  f.allow = 'clipboard-write';
+  f.referrerPolicy = 'no-referrer-when-downgrade';
+  f.onload = function () { document.getElementById('loading').classList.add('hide'); };
+  document.body.appendChild(f);
+  // 15초 안에 안 열리면 새 창 열기 안내
+  setTimeout(function () { var s = document.getElementById('slow'); if (s) s.style.display = 'block'; }, 15000);
+
+  function show(html) {
+    document.getElementById('loading').remove();
+    var d = document.createElement('div'); d.className = 'card'; d.innerHTML = html;
+    document.body.appendChild(d);
+  }
+})();
+</script>
+</body>
+</html>

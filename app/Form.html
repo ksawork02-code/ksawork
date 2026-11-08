@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title><?= appName ?></title>
+<?!= include('Styles') ?>
+</head>
+<body>
+<div class="formpage" id="app"><div class="center"><div class="spinner"></div></div></div>
+<?!= include('Common') ?>
+<script>
+var PAGE = <?= page ?>;
+var TOKEN = <?= token ?>;
+var COMPANY = [
+  { k: '사업장명', req: 1, d: '사업자등록증 기준' },
+  { k: '희망컨설턴트', label: '담당 컨설턴트', d: '없을 경우 공란으로 제출', only: 'apply' },
+  { k: '사업자등록번호', req: 1, d: '사업자등록증 기준 (예: 123-45-67890)', ph: '000-00-00000' },
+  { k: '업태', req: 1, d: '사업자등록증 기준' },
+  { k: '종목', req: 1, d: '사업자등록증 기준' },
+  { k: '근로자수', label: '근로자 수', req: 1, type: 'number', d: '건강보험 가입자 명부 상 인원 수 기준' },
+  { k: '사업장주소', label: '사업장 주소', req: 1, d: '사업자등록증 기준' },
+  { k: '담당부서', req: 1 }, { k: '담당자명', req: 1 }, { k: '담당자직책', label: '담당자 직책', req: 1 },
+  { k: '담당자이메일', label: '담당자 이메일', req: 1, type: 'email' },
+  { k: '담당자연락처', label: '담당자 연락처', req: 1, type: 'tel', ph: '010-0000-0000' }
+];
+var DEF = {
+  apply: { title: function (c) { return c.year + '년 산업일자리전환 컨설팅 신청'; }, fields: COMPANY, fn: 'submitApplication',
+    files: [{ k: '신청서', rule: '신청서', label: '신청서 및 체크리스트 제출', req: 1, d: '파일명: 기업명_' + '{y}' + '년 산업일자리전환컨설팅 신청서 및 체크리스트.hwpx' },
+      { k: '사업자등록증', label: '사업자등록증 제출', req: 1, d: '파일명: 기업명_사업자등록증.pdf' },
+      { k: '중소기업확인서', label: '중소기업 확인서 제출', d: '파일명: 기업명_중소기업확인서.pdf' }] },
+  pre: { title: function (c) { return c.year + '년 산업일자리전환 컨설팅 사전 접수'; }, fields: COMPANY.filter(function (f) { return !f.only; }), fn: 'submitPreRegistration', files: [] },
+  consultant: { title: function () { return '산업일자리전환 컨설턴트 신청'; }, fn: 'submitConsultantApplication',
+    fields: [{ k: '성명', req: 1 }, { k: '연락처', req: 1, type: 'tel', ph: '010-0000-0000' }, { k: '이메일', label: '이메일주소', req: 1, type: 'email', d: '로그인·안내 메일을 받을 주소' },
+      { k: '주요활동지역', label: '주요 활동 지역', req: 1, d: 'ex) 서울, 경북, 전남' }],
+    files: [{ k: '이력서', req: 1, d: '작성한 이력서 파일을 첨부해 주세요.' }] }
+};
+var CFG;
+
+call('getFormConfig', PAGE).then(function (c) { CFG = c; (PAGE === 'status' ? renderStatus : PAGE === 'survey' ? renderSurvey : render)(); }, function (e) { $('#app').innerHTML = '<div class="card">' + esc(e.message) + '</div>'; });
+
+/* ---------- 기업 신청 진행조회 ---------- */
+function renderStatus() {
+  document.title = '신청 진행조회';
+  var h = '<div class="head"><h1>컨설팅 신청 진행조회</h1><div class="small">' + esc(CFG.org) + '</div></div>';
+  if (!CFG.open) { $('#app').innerHTML = h + '<div class="q">현재 진행조회를 이용할 수 없습니다.</div>'; return; }
+  h += '<div class="notice">신청 후 받은 접수 확인 메일의 <b>접수번호</b>와 <b>사업자등록번호</b>를 입력하세요.' + (CFG.contact ? '\n문의: ' + esc(CFG.contact) : '') + '</div>' +
+    '<div class="q"><label class="t">접수번호</label><input id="sNo" placeholder="예: A260412-3F9C21" autocapitalize="characters"></div>' +
+    '<div class="q"><label class="t">사업자등록번호</label><input id="sBrn" placeholder="000-00-00000" inputmode="numeric"></div>' +
+    '<div style="margin-top:16px"><button class="btn primary" id="sGo" style="padding:10px 30px">조회</button></div><div id="sOut"></div>';
+  $('#app').innerHTML = h;
+  $('#sGo').onclick = function () {
+    busy('조회 중...');
+    call('lookupApplication', $('#sNo').value, $('#sBrn').value).then(function (r) {
+      busy(false);
+      var steps = '<div class="stepper" style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0">' + r.steps.map(function (s) {
+        return '<div style="flex:1;min-width:90px;text-align:center;padding:8px 4px;border-radius:8px;font-size:12px;' + (s.완료 ? 'background:#e3f4ec;color:#1e8e5a;font-weight:500' : 'background:#eef1f5;color:#667') + '">' + (s.완료 ? '✓ ' : '') + esc(s.단계) + (s.상태 && !s.완료 ? '<br><span style="font-size:11px">' + esc(s.상태) + '</span>' : '') + '</div>';
+      }).join('') + '</div>';
+      $('#sOut').innerHTML = '<div class="q"><h3 style="margin:0 0 6px">' + esc(r.사업장명) + '</h3><div class="small" style="color:#6b7686">' + esc(r.연도) + '년 ' + esc(r.구분) + ' · 접수 ' + esc(r.신청일) + ' · 승인 ' + esc(r.승인여부) + '</div>' + steps +
+        (r.차수 ? '<div class="small">차수: <b>' + esc(r.차수) + '</b> · 컨설턴트: <b>' + esc(r.컨설턴트 || '배정 중') + '</b> · 기간: ' + esc(r.기간) + '</div>' : '<div class="small">검토 후 배정 결과를 안내드립니다.</div>') + '</div>';
+    }, function (e) { busy(false); $('#sOut').innerHTML = '<div class="q" style="color:#c93b3b">' + esc(e.message) + '</div>'; });
+  };
+}
+
+/* ---------- 만족도 설문 ---------- */
+function renderSurvey() {
+  document.title = '컨설팅 만족도 조사';
+  call('getSurvey', TOKEN).then(function (sv) {
+    var h = '<div class="head"><h1>컨설팅 만족도 조사</h1><div class="small">' + esc(sv.org) + '</div></div>';
+    if (sv.answered) { $('#app').innerHTML = h + '<div class="notice">이미 응답해 주셨습니다. 감사합니다.</div>'; return; }
+    h += '<div class="notice"><b>' + esc(sv.사업장명) + '</b>의 산업일자리전환 컨설팅(컨설턴트: ' + esc(sv.컨설턴트명) + ')에 대한 의견을 들려주세요. 1분이면 됩니다.\n1점 매우 불만족 ~ 5점 매우 만족</div>';
+    sv.questions.forEach(function (q, i) {
+      h += '<div class="q"><label class="t">' + (i + 1) + '. ' + esc(q) + ' <span class="req">*</span></label><div style="display:flex;gap:6px;margin-top:6px">' +
+        [1, 2, 3, 4, 5].map(function (n) { return '<label style="flex:1;text-align:center;border:1px solid #e3e7ee;border-radius:8px;padding:8px 0;cursor:pointer"><input type="radio" name="q' + i + '" value="' + n + '" style="width:auto;display:block;margin:0 auto 4px">' + n + '</label>'; }).join('') + '</div></div>';
+    });
+    h += '<div class="q"><label class="t">하고 싶은 말씀 (선택)</label><textarea id="svC"></textarea></div><div class="q"><label class="t">응답자 성함 (선택)</label><input id="svN"></div>' +
+      '<div style="margin-top:16px"><button class="btn primary" id="svGo" style="padding:10px 30px">제출</button></div>';
+    $('#app').innerHTML = h;
+    $('#svGo').onclick = function () {
+      var sc = sv.questions.map(function (q, i) { var c = document.querySelector('input[name=q' + i + ']:checked'); return c ? Number(c.value) : 0; });
+      if (sc.indexOf(0) >= 0) return toast('모든 문항에 응답해 주세요.', true);
+      busy('제출 중...');
+      call('submitSurvey', TOKEN, sc, $('#svC').value, $('#svN').value).then(function () { busy(false); $('#app').innerHTML = '<div class="head"><h1>감사합니다</h1></div><div class="notice">소중한 의견은 컨설팅 품질 개선에 활용하겠습니다.</div>'; }, function (e) { busy(false); toast(e.message, true); });
+    };
+  }, function (e) { $('#app').innerHTML = '<div class="head"><h1>컨설팅 만족도 조사</h1></div><div class="notice">' + esc(e.message) + '</div>'; });
+}
+
+function render() {
+  var d = DEF[PAGE], title = d.title(CFG);
+  document.title = title;
+  var h = '<div class="head"><h1>' + esc(title) + '</h1><div class="small">' + esc(CFG.org) + '</div></div>';
+  h += '<div class="notice">' + esc(CFG.notice) + (CFG.templateUrl ? '\n\n<a href="' + esc(CFG.templateUrl) + '" target="_blank">⬇ 양식 다운로드</a>' : '') +
+    (CFG.contact ? '\n\n문의: ' + esc(CFG.contact) : '') + '</div>';
+  if (!CFG.open) { $('#app').innerHTML = h + '<div class="q">현재 접수 기간이 아닙니다.</div>'; return; }
+  h += '<form id="f" novalidate>';
+  d.fields.forEach(function (f) {
+    h += '<div class="q"><label class="t">' + esc(f.label || f.k) + (f.req ? ' <span class="req">*</span>' : '') + '</label>' +
+      (f.d ? '<div class="d">' + esc(f.d) + '</div>' : '') +
+      '<input name="' + f.k + '" type="' + (f.type || 'text') + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + (f.type === 'number' ? ' min="0" inputmode="numeric"' : '') + '><div class="err"></div></div>';
+  });
+  d.files.forEach(function (f) {
+    h += '<div class="q"><label class="t">' + esc(f.label || f.k) + (f.req ? ' <span class="req">*</span>' : '') + '</label>' +
+      '<div class="d">' + (f.d ? esc(f.d.replace('{y}', CFG.year)) + ' · ' : '') + ruleText(ruleOf(f)) + '최대 ' + CFG.maxMb + 'MB</div>' +
+      '<input type="file" name="file_' + f.k + '" multiple' + acceptAttr(ruleOf(f)) + '><div class="err"></div></div>';
+  });
+  h += '<div class="q"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="agree" style="width:auto;margin-top:4px"><span>개인정보(담당자 성명·연락처·이메일)를 컨설팅 운영 목적으로 수집·이용하는 데 동의합니다. <span class="req">*</span></span></label></div>';
+  h += '<div style="margin-top:16px" class="row"><button class="btn primary" type="submit" style="padding:10px 30px">제출</button></div></form>';
+  $('#app').innerHTML = h;
+  $('#f').addEventListener('submit', submit);
+  d.files.forEach(function (f) {
+    var inp = $('[name="file_' + f.k + '"]');
+    inp.onchange = function () { var m = extError(inp, ruleOf(f)); inp.parentNode.querySelector('.err').textContent = m; if (m) { toast(m, true); inp.value = ''; } };
+  });
+}
+
+function ruleOf(f) { return CFG.fileRules[f.rule || '기본']; }
+function ruleText(r) { return (r.allow.length ? '<b>' + r.allow.map(function (x) { return '.' + x; }).join(', ') + ' 파일만 가능</b> · ' : '') + (r.block.length ? r.block.map(function (x) { return '.' + x; }).join(', ') + ' 불가 · ' : ''); }
+function fieldErr(name, msg) { var el = $('[name="' + name + '"]'); if (el) el.parentNode.querySelector('.err').textContent = msg || ''; }
+
+function brnOk(s) {
+  var d = String(s).replace(/\D/g, ''); if (d.length !== 10) return false;
+  var w = [1, 3, 7, 1, 3, 7, 1, 3, 5], sum = 0;
+  for (var i = 0; i < 9; i++) sum += d[i] * w[i];
+  sum += Math.floor(d[8] * 5 / 10);
+  return (10 - sum % 10) % 10 === Number(d[9]);
+}
+
+function submit(ev) {
+  ev.preventDefault();
+  var d = DEF[PAGE], data = {}, ok = true, first = null;
+  d.fields.forEach(function (f) {
+    var v = $('[name="' + f.k + '"]').value.trim(); data[f.k] = v; var m = '';
+    if (f.req && !v) m = '필수 항목입니다.';
+    else if (v && f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) m = '이메일 형식을 확인해 주세요.';
+    else if (v && f.type === 'tel' && String(v).replace(/\D/g, '').length < 9) m = '연락처를 확인해 주세요.';
+    else if (v && f.k === '사업자등록번호' && !brnOk(v)) m = '올바른 사업자등록번호가 아닙니다.';
+    fieldErr(f.k, m); if (m) { ok = false; first = first || f.k; }
+  });
+  d.files.forEach(function (f) {
+    var inp = $('[name="file_' + f.k + '"]'), m = '';
+    if (f.req && !inp.files.length) m = '파일을 첨부해 주세요.';
+    else m = extError(inp, ruleOf(f));
+    inp.parentNode.querySelector('.err').textContent = m; if (m) { ok = false; first = first || 'file_' + f.k; }
+  });
+  if (!ok) { var el = $('[name="' + first + '"]'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('입력 내용을 확인해 주세요.', true); return; }
+  if (!$('#agree').checked) { toast('개인정보 수집·이용에 동의해 주세요.', true); return; }
+  busy('파일을 준비하는 중...');
+  Promise.all(d.files.map(function (f) { return readFiles($('[name="file_' + f.k + '"]'), CFG.maxMb).then(function (arr) { return [f.k, arr]; }); }))
+    .then(function (pairs) {
+      var files = {}; pairs.forEach(function (p) { files[p[0]] = p[1]; });
+      busy('제출하는 중... 창을 닫지 마세요.');
+      return call(d.fn, data, files);
+    })
+    .then(function (r) {
+      busy(false);
+      $('#app').innerHTML = '<div class="head"><h1>제출이 완료되었습니다</h1></div><div class="notice">접수번호: <b>' + esc(r.id) + '</b>\n\n' +
+        (PAGE === 'consultant' ? '검토 후 등록하신 이메일로 안내드리겠습니다.' : '담당자 이메일로 접수 확인 메일이 발송됩니다. 검토 후 연락드리겠습니다.') +
+        (CFG.contact ? '\n\n문의: ' + esc(CFG.contact) : '') + '</div>';
+      window.scrollTo(0, 0);
+    })
+    .catch(function (e) { busy(false); toast(e.message, true); });
+}
+</script>
+</body>
+</html>

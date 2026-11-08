@@ -1,0 +1,85 @@
+<script>
+/* 공통 클라이언트 유틸 */
+var TOKEN_KEY = 'ccm_token';
+function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return window._tok || ''; } }
+function setToken(t) { window._tok = t; try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+
+/** 서버 함수 호출 → Promise */
+function call(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (resolve, reject) {
+    var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) {
+      var msg = (e && e.message) || String(e);
+      if (msg.indexOf('SESSION_EXPIRED') >= 0) { setToken(''); toast('로그인이 만료되었습니다. 다시 로그인해 주세요.', true); setTimeout(function () { location.reload(); }, 1200); }
+      reject(new Error(msg.replace(/^Error:\s*/, '').replace(/^Exception:\s*/, '')));
+    });
+    r[fn].apply(r, args);
+  });
+}
+
+/** 로딩 표시와 함께 호출. 오류는 토스트 */
+function run(label, fn) {
+  var args = Array.prototype.slice.call(arguments, 2);
+  busy(label);
+  return call.apply(null, [fn].concat(args)).then(function (r) { busy(false); return r; }, function (e) { busy(false); toast(e.message, true); throw e; });
+}
+
+function busy(label) {
+  var o = document.getElementById('overlay');
+  if (label === false) { if (o) o.remove(); return; }
+  if (!o) { o = document.createElement('div'); o.id = 'overlay'; document.body.appendChild(o); }
+  o.innerHTML = '<div class="spinner"></div><div class="muted">' + esc(label || '처리 중...') + '</div>';
+}
+
+function toast(msg, bad) {
+  var t = document.getElementById('toast');
+  if (t) t.remove();
+  t = document.createElement('div'); t.id = 'toast'; if (bad) t.className = 'bad';
+  t.textContent = msg; document.body.appendChild(t);
+  setTimeout(function () { t.remove(); }, bad ? 6000 : 3000);
+}
+
+function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+/** <input type=file> → [{name,mime,b64}] */
+function readFiles(input, maxMb) {
+  var files = Array.prototype.slice.call((input && input.files) || []);
+  maxMb = maxMb || 20;
+  return Promise.all(files.map(function (f) {
+    return new Promise(function (res, rej) {
+      if (f.size > maxMb * 1024 * 1024) return rej(new Error('파일이 너무 큽니다(최대 ' + maxMb + 'MB): ' + f.name));
+      var r = new FileReader();
+      r.onload = function () { res({ name: f.name, mime: f.type || 'application/octet-stream', b64: String(r.result).split(',')[1] || '' }); };
+      r.onerror = function () { rej(new Error('파일을 읽지 못했습니다: ' + f.name)); };
+      r.readAsDataURL(f);
+    });
+  }));
+}
+
+function saveB64(b64, name, mime) {
+  var bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  var url = URL.createObjectURL(new Blob([arr], { type: mime || 'application/octet-stream' }));
+  var a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+
+/** 확장자 규칙 확인. rule = {allow:[], block:[]} → 오류 메시지 또는 '' */
+function extError(input, rule) {
+  if (!rule) return '';
+  var bad = Array.prototype.slice.call((input && input.files) || []).map(function (f) {
+    var ext = f.name.indexOf('.') >= 0 ? f.name.split('.').pop().toLowerCase() : '';
+    if (rule.block.indexOf(ext) >= 0) return '.' + ext + ' 파일은 올릴 수 없습니다: ' + f.name;
+    if (rule.allow.length && rule.allow.indexOf(ext) < 0) return rule.allow.map(function (x) { return '.' + x; }).join(', ') + ' 형식만 올릴 수 있습니다: ' + f.name;
+    return '';
+  }).filter(String);
+  if (!bad.length) return '';
+  return bad[0] + (/hwp/.test(bad[0]) || rule.allow.indexOf('hwpx') >= 0 ? ' (한글에서 [다른 이름으로 저장 > HWPX]로 저장해 주세요)' : '');
+}
+function acceptAttr(rule) { return rule && rule.allow.length ? ' accept="' + rule.allow.map(function (x) { return '.' + x; }).join(',') + '"' : ''; }
+
+function parseFiles(s) { if (!s) return []; if (Array.isArray(s)) return s; try { var a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function fsize(n) { n = Number(n) || 0; return n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+</script>

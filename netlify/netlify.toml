@@ -1,0 +1,49 @@
+# 정적 사이트 (빌드 없음)
+[build]
+  publish = "."
+
+# 짧은 주소 → 같은 페이지 (index.html이 경로를 보고 해당 화면을 띄움)
+[[redirects]]
+  from = "/login"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/apply"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/pre"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/consultant"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/status"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/survey"
+  to = "/index.html"
+  status = 200
+
+# 그 밖의 주소 → 안내 화면(404)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 404
+
+# 설정 파일은 항상 최신본 사용
+[[headers]]
+  for = "/config.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

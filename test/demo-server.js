@@ -1,0 +1,32 @@
+// 매뉴얼 캡처용: 실제 데이터를 익명화한 데모 서버
+const fs = require('fs');
+const st = JSON.parse(fs.readFileSync(__dirname + '/state.json'));
+const A = ['한빛', '새솔', '다온', '미래', '푸른', '대한', '동방', '태성', '성진', '우성', '하늘', '금강', '청운', '은하', '수림', '가온', '누리', '도담', '라온', '바른'];
+const B = ['정밀', '산업', '테크', '화학', '전자', '기계', '물산', '소재', '금속', '플라스틱', '식품', '섬유'];
+const SUR = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임', '한', '오', '서', '신', '권', '황'];
+const GIV = ['민준', '서연', '도윤', '지우', '하준', '수아', '시우', '지민', '예준', '하은', '주원', '서윤', '지호', '채원', '현우', '다인', '건우', '유나', '우진', '소율'];
+const coMap = {}, pMap = {}; let ci = 0, pi = 0;
+const co = n => { if (!n) return n; if (!coMap[n]) { const k = ci++; coMap[n] = (k % 3 === 0 ? '(주)' : '') + A[k % A.length] + B[Math.floor(k / A.length) % B.length] + (k % 3 === 1 ? '(주)' : ''); } return coMap[n]; };
+const person = n => { if (!n) return n; return n.split(/\s*,\s*/).map(x => { if (!x) return x; if (!pMap[x]) { const k = pi++; pMap[x] = SUR[k % SUR.length] + GIV[Math.floor(k / SUR.length) % GIV.length]; } return pMap[x]; }).join(', '); };
+const sheets = Object.fromEntries(st.sheets);
+const fix = (name, fn) => { const s = sheets[name]; if (!s) return; const h = s[0]; for (let i = 1; i < s.length; i++) { if (!s[i]) continue; const o = Object.fromEntries(h.map((k, j) => [k, s[i][j] === undefined ? '' : s[i][j]])); fn(o, i); s[i] = h.map(k => o[k] === undefined ? '' : String(o[k])); } };
+const anonFiles = (v, label) => { try { const a = JSON.parse(v || '[]'); return JSON.stringify(a.map((f, i) => Object.assign({}, f, { name: label + (a.length > 1 ? '_' + (i + 1) : '') + '.' + (String(f.name).split('.').pop() || 'pdf') }))); } catch (e) { return v; } };
+let n = 0;
+fix('신청', o => {
+  n++; o['사업장명'] = co(o['사업장명']); o['사업자등록번호'] = '000-00-' + String(10000 + n).slice(-5);
+  o['사업장주소'] = (o['사업장지역'] || '서울') + ' ○○구 ○○로 ' + (n % 90 + 1); o['담당자명'] = person(o['담당자명']); o['담당자연락처'] = '010-0000-' + String(1000 + n).slice(-4);
+  o['담당자이메일'] = 'contact' + n + '@example.com'; o['희망컨설턴트'] = person(o['희망컨설턴트']); o['연락담당자'] = person(o['연락담당자']); o['신청자'] = o['신청자'] ? '관리자' : '';
+  o['특이사항'] = o['특이사항'] ? '전년도 상담 이력 있음. 산업전환 방향 상담 희망' : ''; o['비고'] = ''; o['지역본부'] = '';
+  ['신청서', '사업자등록증', '중소기업확인서'].forEach(k => o[k] = anonFiles(o[k], k));
+});
+let m = 0;
+fix('컨설턴트', o => { m++; o['성명'] = person(o['성명']); o['연락처'] = '010-1111-' + String(1000 + m).slice(-4); o['이메일'] = o['이메일'] ? 'consultant' + m + '@example.com' : ''; o['구매처코드'] = o['구매처코드'] ? String(400000 + m) : ''; o['비고'] = o['비고'] ? '1차 참여' : ''; o['보완요청'] = ''; o['개인별안내'] = o['개인별안내'] ? '11월 중 보고서 작성 교육(2시간)에 꼭 참석해 주세요.' : ''; o['이력서'] = anonFiles(o['이력서'], '이력서'); });
+const cname = {}; fix('컨설턴트', o => { cname[o.ID] = o['성명']; });
+fix('사업장', o => { o['사업장명'] = co(o['사업장명']); o['컨설턴트명'] = String(o['컨설턴트ID']).split(',').map(i => cname[i] || '').filter(String).join(', '); o['비고'] = ''; o['장려금접수증'] = anonFiles(o['장려금접수증'], '접수증'); o['우수사례첨부'] = anonFiles(o['우수사례첨부'], '우수사례'); });
+fix('수행일지', o => { o['작성자'] = 'consultant@example.com'; o['첨부'] = anonFiles(o['첨부'], '현장사진'); });
+fix('보고서', o => { o['제출자'] = 'consultant@example.com'; o['파일'] = anonFiles(o['파일'], '중간보고서'); });
+fix('설정', o => { if (o['키'] === 'ADMIN_EMAILS') o['값'] = 'admin@example.org'; if (o['키'] === 'CONTACT_EMAIL') o['값'] = 'support@example.org'; });
+['변경이력', '메일이력'].forEach(k => { if (sheets[k]) sheets[k] = [sheets[k][0]]; });
+st.sheets = Object.entries(sheets);
+fs.writeFileSync(__dirname + '/state-demo.json', JSON.stringify(st));
+console.log('anonymized', ci, 'companies', pi, 'people');

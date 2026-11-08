@@ -1,0 +1,148 @@
+const assert = require('assert'), fs = require('fs');
+const { makeEnv } = require('./gas-mock');
+const env = makeEnv({ realDownloads: 2, quiet: false });
+const G = env.ctx;
+const secret = process.env.LARK_APP_SECRET;
+if (!secret) { console.error('환경변수 LARK_APP_SECRET 이 필요합니다 (Lark 실데이터 이관 테스트).'); process.exit(1); }
+const sheet = n => { G._cache = {}; return G.all_(n); };
+const ok = (m) => console.log('  ✓', m);
+const throws = (fn, re, m) => { try { fn(); } catch (e) { assert(re.test(e.message), m + ' → ' + e.message); return ok(m + ' (' + e.message.slice(0, 50) + ')'); } assert.fail(m + ' should throw'); };
+
+console.log('1) setup');
+G.setup();
+assert.strictEqual(env.active.getSheets().map(s => s.getName()).join(), Object.keys(G.SCHEMA).join());
+assert(G.setting_('ADMIN_EMAILS').includes('ksawork02@gmail.com'));
+assert.strictEqual(env.triggers.filter(t => t.fn === 'dailyCheck').length, 1);
+G.setup(); // 재실행해도 중복 없음
+assert.strictEqual(sheet('설정').length, G.DEFAULT_SETTINGS.length);
+ok('시트 ' + env.active.getSheets().length + '개, 설정, 트리거, 재실행 멱등');
+
+console.log('2) Lark 이관');
+env.props.LARK_APP_SECRET = secret;
+const t0 = Date.now();
+G.migrateFromLark();
+const apps = sheet('신청'), projs = sheet('사업장'), cons = sheet('컨설턴트');
+console.log(`  신청 ${apps.length}, 사업장 ${projs.length}, 컨설턴트 ${cons.length}, 교육 ${sheet('교육').length}, 교육이수 ${sheet('교육이수').length}, 차수일정 ${sheet('차수일정').length} (${Date.now() - t0}ms)`);
+assert.strictEqual(apps.filter(a => a['구분'] === '본신청').length, 224);
+assert.strictEqual(apps.filter(a => a['구분'] === '사전접수').length, 1);
+assert.strictEqual(projs.length, 215);
+assert(cons.length >= 95);
+const linked = projs.filter(p => p['신청ID']).length, withCons = projs.filter(p => p['컨설턴트ID']).length;
+console.log(`  사업장→신청 연결 ${linked}/215, 컨설턴트 연결 ${withCons}/215, 신청→사업장ID ${apps.filter(a => a['사업장ID']).length}`);
+assert(linked >= 210 && withCons >= 210);
+// 연결 무결성
+const appIds = new Set(apps.map(a => a.ID)), consIds = new Set(cons.map(c => c.ID));
+projs.forEach(p => { if (p['신청ID']) assert(appIds.has(p['신청ID'])); G.splitIds_(p['컨설턴트ID']).forEach(id => assert(consIds.has(id), 'cons ' + id)); });
+assert.strictEqual(new Set(apps.map(a => a.ID)).size, apps.length);
+ok('참조 무결성, ID 중복 없음');
+const p0 = projs.find(p => p['차수'] === '5차');
+assert(/^\d{4}-\d{2}-\d{2}$/.test(p0['착수일']), p0['착수일']);
+ok('날짜 형식 ' + p0['착수일'] + ', 차수일정: ' + sheet('차수일정').map(s => s['차수']).join(','));
+const status = G.migrationStatus();
+console.log('  ' + status.replace(/\n/g, ' | '));
+const inter = cons.filter(c => c['구분'] === '내부').length;
+ok('내부 컨설턴트 ' + inter + '명, 개인별안내 ' + cons.filter(c => c['개인별안내']).length + '명');
+// 파일 이관 계속 (스텁)
+let loops = 0; while (G.countLarkFiles_(false) > 0 && loops++ < 20) G.migrateFromLark();
+assert.strictEqual(G.countLarkFiles_(false), 0);
+const realFile = Object.values(env.files).find(f => f.getSize() > 1000);
+assert(realFile, '실제 다운로드 파일 존재');
+ok(`첨부 이관 완료: 드라이브 파일 ${Object.keys(env.files).length}개 (실제 다운로드 확인: ${realFile.getName()} ${realFile.getSize()}B), 경로 ${realFile.parent.path()}`);
+assert(!env.props.LARK_APP_SECRET, '이관 후 secret 삭제');
+assert(env.outbox.some(m => /이관 완료/.test(m.subject)));
+ok('완료 메일 + secret 삭제');
+G.resetMigrationFlag(); G.migrateData_(); // 재이관 시 중복 없음
+assert.strictEqual(sheet('사업장').length, 215); assert.strictEqual(sheet('신청').length, 225);
+ok('재이관 시 중복 없음');
+
+console.log('3) 외부 폼');
+const company = { 사업장명: '테스트(주)', 사업자등록번호: '220-81-62517', 업태: '제조', 종목: '부품', 근로자수: '45', 사업장주소: '경상남도 창원시 성산구 1', 담당부서: '인사', 담당자명: '홍길동', 담당자직책: '과장', 담당자연락처: '01012345678', 담당자이메일: 'Hong@Test.com', 희망컨설턴트: cons[0]['성명'] };
+const f1 = { name: 'a.hwpx', mime: 'application/hwp+zip', b64: Buffer.from('PK\x03\x04hello').toString('base64') };
+throws(() => G.submitApplication(Object.assign({}, company, { 사업자등록번호: '123-45-67890' }), { 신청서: [f1], 사업자등록증: [f1] }), /사업자등록번호/, '잘못된 사업자번호 거부');
+throws(() => G.submitApplication(company, { 신청서: [f1] }), /사업자등록증/, '필수 첨부 누락 거부');
+const r1 = G.submitApplication(company, { 신청서: [f1], 사업자등록증: [f1] });
+const a1 = G.find_('신청', r1.id);
+assert.strictEqual(a1['사업장지역'], '경남'); assert.strictEqual(a1['담당자연락처'], '010-1234-5678'); assert.strictEqual(a1['담당자이메일'], 'hong@test.com');
+assert.strictEqual(G.parseFiles_(a1['신청서']).length, 1);
+ok('신청 접수 ' + r1.id + ' (지역 경남, 번호·이메일 정규화)');
+throws(() => G.submitApplication(company, { 신청서: [f1], 사업자등록증: [f1] }), /이미/, '중복 신청 거부');
+const r2 = G.submitPreRegistration(Object.assign({}, company));
+assert.strictEqual(G.find_('신청', r2.id)['연도'], '2027'); ok('사전접수 2027');
+assert(env.outbox.some(m => m.to === 'hong@test.com'), '접수 확인 메일');
+const rc = G.submitConsultantApplication({ 성명: '신규컨', 연락처: '010-9999-8888', 이메일: 'newc@test.com', 주요활동지역: '서울' }, { 이력서: [f1] });
+assert.strictEqual(G.find_('컨설턴트', rc.id)['상태'], '신청'); ok('컨설턴트 신청 (상태=신청)');
+G.setSetting_('APPLY_OPEN', 'N'); G._cache = {};
+throws(() => G.submitApplication(company, {}), /신청 기간/, '폼 닫힘');
+G.setSetting_('APPLY_OPEN', 'Y');
+
+console.log('4) 로그인');
+const login = email => { env.outbox.length = 0; G._cache = {}; G.requestOtp(email); const code = env.outbox[0].subject.match(/(\d{6})/)[1]; return G.verifyOtp(email, code); };
+throws(() => G.requestOtp('nobody@x.com'), /등록된/, '미등록 이메일 거부');
+throws(() => G.requestOtp('newc@test.com'), /등록된/, '신청 상태 컨설턴트 거부');
+const adm = login('KSAWORK02@gmail.com'); assert.strictEqual(adm.user.role, 'admin'); ok('관리자 OTP 로그인');
+G.requestOtp('ksawork02@ksa.or.kr'); throws(() => G.verifyOtp('ksawork02@ksa.or.kr', '000000'), /올바르지/, '틀린 코드 거부');
+const AT = adm.token;
+throws(() => G.adminBootstrap('f'.repeat(40)), /SESSION_EXPIRED/, '가짜 토큰 거부');
+const boot = G.adminBootstrap(AT);
+assert.strictEqual(boot.projects.length, 215); assert(boot.options.차수.includes('10차'));
+ok(`관리자 부트스트랩 (${JSON.stringify(boot).length / 1000 | 0}KB)`);
+
+console.log('5) 사업장 생성·착수메일');
+const consultant = sheet('컨설턴트').find(c => c['이메일'] && c['상태'] === '활동' && c['구분'] === '외부');
+const np = G.adminCreateProject(AT, r1.id, { 차수: '10차', 컨설턴트ID: [consultant.ID], sendKickoff: true });
+assert.strictEqual(np['착수일'], G.find_('차수일정', '10차', '차수')['착수일']);
+assert.strictEqual(G.find_('신청', r1.id)['승인여부'], '확정');
+const kick = env.outbox.find(m => m.subject.includes('착수 안내'));
+assert(kick && kick.to === consultant['이메일'] && kick.htmlBody.includes('홍길동'));
+G._cache = {}; assert.strictEqual(G.find_('사업장', np.ID)['착수현황'], '착수메일 발송');
+ok('사업장 ' + np.ID + ' 생성, 일정 자동, 착수메일 → ' + consultant['성명']);
+throws(() => G.adminCreateProject(AT, r1.id, { 차수: '10차' }), /이미/, '중복 생성 거부');
+
+console.log('6) 컨설턴트 화면');
+const ct = login(consultant['이메일']); assert.strictEqual(ct.user.role, 'consultant');
+const CT = ct.token;
+throws(() => G.adminBootstrap(CT), /관리자/, '컨설턴트의 관리자 API 차단');
+const cb = G.consultantBootstrap(CT);
+assert(cb.projects.some(p => p.ID === np.ID)); ok('내 사업장 ' + cb.projects.length + '곳');
+const other = sheet('사업장').find(p => !G.splitIds_(p['컨설턴트ID']).includes(consultant.ID));
+throws(() => G.getProjectDetail(CT, other.ID), /담당/, '타인 사업장 차단');
+let d = G.saveLog(CT, { 사업장ID: np.ID, 일자: '2026-11-07', 방식: '방문', 내용: '1차 방문 진단' }, [f1]);
+d = G.saveLog(CT, { 사업장ID: np.ID, 일자: '2026-11-10', 방식: '비대면', 내용: '2차' }, []);
+assert.strictEqual(d.logs.map(l => l['회차']).join(), '1,2'); assert.strictEqual(d.project['수행일지수'], '2');
+d = G.saveLog(CT, { ID: d.logs[0].ID, 사업장ID: np.ID, 일자: '2026-11-07', 내용: '수정됨' }, []);
+assert.strictEqual(d.logs[0]['내용'], '수정됨'); ok('수행일지 작성·자동회차·수정');
+d = G.submitReport(CT, np.ID, '중간', [f1], '중간보고 제출');
+assert.strictEqual(d.project['중간검수'], '검수 중'); assert(d.project['중간제출일']); ok('중간보고서 제출 → 검수 중');
+d = G.updateMyProject(CT, np.ID, { 정책연계여부: 'Y', 정책연계사업: '산업일자리전환장려금, KDT', 컨설턴트ID: 'HACK' }, { 장려금접수증: [f1] });
+assert.strictEqual(d.project['정책연계여부'], 'Y'); assert.strictEqual(d.project['컨설턴트ID'], consultant.ID);
+ok('정책연계 입력 (컨설턴트ID 변조 무시)');
+const logFile = G.parseFiles_(d.logs[0]['첨부'])[0].id;
+assert(G.downloadFile(CT, logFile).b64); throws(() => G.downloadFile(CT, G.parseFiles_(G.find_('신청', r1.id)['신청서'])[0].id), /권한/, '신청서류 다운로드 차단');
+
+console.log('7) 검수·알림');
+env.outbox.length = 0;
+d = G.adminReviewSubmission(AT, d.submissions[0].ID, '보완요청', '3장 보완 필요');
+G._cache = {}; assert.strictEqual(G.find_('사업장', np.ID)['중간검수'], '보완요청');
+assert(env.outbox.some(m => m.subject.includes('보완요청') && m.htmlBody.includes('3장 보완')));
+ok('보완요청 → 상태 반영 + 컨설턴트 메일');
+assert(G.historyOf_(np.ID).length >= 5); ok('변경이력 ' + G.historyOf_(np.ID).length + '건');
+env.outbox.length = 0; G.dailyCheck();
+const digest = env.outbox.find(m => m.subject.includes('일일 현황'));
+assert(digest); ok('일일 현황: ' + digest.subject + ' / 기한알림 ' + env.outbox.filter(m => m.subject.includes('기한 안내')).length + '통');
+const x = G.adminExportXlsx(AT, '테스트', ['a', 'b'], [['1', '=2']]); assert(x.b64 && x.name.endsWith('.xlsx')); ok('엑셀 내보내기');
+G.adminSaveSchedule(AT, { 차수: '11차', 연도: '2026', 착수일: '2026-12-01' }, false);
+assert(G.options_().차수.includes('11차')); ok('차수 추가');
+const ns = G.adminSaveSchedule(AT, Object.assign({}, G.find_('차수일정', '10차', '차수'), { 중간기한: '2026-11-20' }), true);
+assert(ns.applied >= 57); G._cache = {}; assert.strictEqual(G.find_('사업장', np.ID)['중간기한'], '2026-11-20'); ok('차수 일정 일괄 적용 ' + ns.applied + '곳');
+let cd = G.adminSetTraining(AT, consultant.ID, sheet('교육')[0].ID, '3', ''); ok('교육이수 설정, 총 ' + cd.totalHours + 'h');
+G.adminSaveConsultant(AT, consultant.ID, { 상태: '제외' });
+G.cache && 0; Object.keys(env.cache).filter(k => k.startsWith('who:')).forEach(k => delete env.cache[k]);
+throws(() => G.consultantBootstrap(CT), /SESSION_EXPIRED/, '제외 처리 즉시 로그인 차단');
+
+console.log('8) 메일 한도 예약');
+const env2 = makeEnv({ quota: 10, quiet: true }); env2.ctx.setup();
+assert.strictEqual(env2.ctx.sendMail_('a@b.com', 's', 'b', '착수메일', ''), false);
+assert.strictEqual(env2.ctx.sendMail_('a@b.com', 's', 'b', '로그인', ''), true);
+ok('한도 15건 이하일 때 로그인 코드만 발송');
+console.log('\n모든 서버 테스트 통과');
+fs.writeFileSync(__dirname + '/state.json', JSON.stringify({ sheets: env.active.getSheets().map(s => [s.getName(), s.data]) }));
