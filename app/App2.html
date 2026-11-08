@@ -9,7 +9,17 @@ function bc(n) { return n ? ' (' + n + ')' : ''; }
 function adminTabsList() {
   var b = S.badges || {};
   return [['dash', '대시보드'], ['apps', '신청'], ['projects', '사업장'], ['visits', '일정'], ['cons', '컨설턴트'], ['edu', '교육' + bc(b.교육신청)],
-    ['fee', '정산' + bc(b.정산)], ['report', '실적'], ['board', '공지·문의' + bc(b.문의)], ['mail', '메일·문자'], ['sched', '차수일정'], ['settings', '설정']];
+    ['fee', '정산' + bc(b.정산)], ['report', '실적'], ['board', '공지·문의' + bc(b.문의)], ['mail', '메일·문자'], ['sched', '차수일정'], ['settings', '설정']]
+    .filter(function (t) { return t[0] === 'settings' || t[0] === 'sched' ? can('manage') : t[0] === 'mail' ? can('edit') : true; });
+}
+/** 관리자 세부 권한 (서버 ADMIN_CAPS와 같게): 총괄 / 지역 / 검수 / 조회 */
+function can(cap) {
+  var caps = { 총괄: ['edit', 'review', 'manage'], 지역: ['edit', 'review'], 검수: ['review'], 조회: [] }[(S.me && S.me.adminRole) || '총괄'] || [];
+  return caps.indexOf(cap) >= 0;
+}
+function adminLabel() {
+  var r = (S.me && S.me.adminRole) || '총괄';
+  return S.me.email + ' (관리자' + (r === '총괄' ? '' : '·' + r + (r === '지역' && S.me.regions && S.me.regions.length ? ' ' + S.me.regions.join(' ') : '')) + ')';
 }
 function consTabsList() {
   var b = S.badges || {};

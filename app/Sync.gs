@@ -338,7 +338,7 @@ function clearSyncTriggers_() {
 
 /** 관리자 화면에서 호출 */
 function adminLarkSync(token, action, minutes) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   if (action === 'now') { audit_(s.email, 'Lark 동기화(수동)', '', '', '', '', ''); return syncNow_(); }
   if (action === 'on') { audit_(s.email, 'Lark 동기화 켬', '', '', '', '', String(minutes)); enableLarkSync(minutes); }
   if (action === 'off') { audit_(s.email, 'Lark 동기화 끔', '', '', '', '', ''); disableLarkSync(); }

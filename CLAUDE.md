@@ -24,7 +24,7 @@
 - 모든 셀은 문자열(`@` 서식). 날짜는 `yyyy-MM-dd`, 일시는 `yyyy-MM-dd HH:mm:ss`(Asia/Seoul). 파일 필드는 `[{id,name,size,at,token?}]` JSON.
 - 새 ID는 `newId_(시트)` → `접두사+yyMMdd-6자리`. 접두사는 `ID_PREFIX`.
 - 쓰기는 반드시 `insert_/insertMany_/update_/remove_`로 한다(락 + 변경이력 + 캐시 무효화). 시트를 직접 고치는 코드는 끝에 `bumpVersion_(시트)`를 불러 요청 간 캐시를 무효화한다. `update_`는 바뀐 필드만 `변경이력`에 남긴다.
-- 서버 공개 함수(이름 끝에 `_` 없음)는 클라이언트에서 호출 가능하다 → 첫 줄에서 `session_(token[, 'admin'])`로 권한을 확인한다. 컨설턴트는 `ownProject_()`로 담당 사업장만 접근. 공개 페이지 함수(`submit*`, `getSurvey`, `lookupApplication`)는 입력 검증과 횟수 제한을 둔다.
+- 서버 공개 함수(이름 끝에 `_` 없음)는 클라이언트에서 호출 가능하다 → 첫 줄에서 `session_(token[, need])`로 권한을 확인한다. need = `'admin'`(관리자 조회) / `'edit'`(업무 처리) / `'review'`(검수) / `'manage'`(설정·컨설턴트·교육·정산·공지·Lark). 지역 관리자는 `scopeApp_/scopeProject_`로 담당 지역만, 목록은 `inRegion_`으로 거른다. 컨설턴트는 `ownProject_()`로 담당 사업장만 접근. 공개 페이지 함수(`submit*`, `getSurvey`, `lookupApplication`)는 입력 검증과 횟수 제한을 둔다.
 - 앱 전역 코드가 파일 간 순서에 의존하지 않게 한다(최상위에서 다른 파일의 변수 참조 금지, 함수 안에서만 참조).
 - 설정값은 시트 `설정`(키/값/설명)과 `DEFAULT_SETTINGS`. 비밀값(Lark App Secret, 솔라피 키, 로그인 토큰)은 **스크립트 속성**에만 둔다. 코드·문서·커밋에 비밀값을 넣지 않는다.
 - 메일은 `sendMail_`, 문자는 `sendSms_`만 쓴다(한도 예약·이력 기록 포함).
@@ -43,6 +43,7 @@ export LARK_APP_SECRET=...        # 있으면 실제 Lark 이관 테스트도 �
 |---|---|---|
 | `test-ext.js` | 업로드 규칙 | 불필요 |
 | `test-ops.js` | 요청 간 캐시·이력 보관·토큰 제한·메일 한도·솔라피 오류 기록 | 불필요 |
+| `test-roles.js` | 관리자 권한 세분화(총괄·지역·검수·조회) | 픽스처로 가능 |
 | `fixture.js` | 가상 데이터 픽스처 `state-fixture.json` 생성(개인정보 없음, 시드 고정) | 불필요 |
 | `test-features.js` | 세부 기능 13종. `STATE`(입력)·`STATE_OUT`(출력, 기본 state2.json) | 픽스처로 가능 |
 | `ui-test.js` `ui-test2.js` `netlify-test.js` | 화면 E2E. 모의 서버 `ui-server.js`(:8787, `STATE`로 데이터 선택)가 떠 있어야 함 | 픽스처로 가능 |

@@ -84,6 +84,12 @@ const rpc = (fn, ...args) => fetch(B + '/rpc', { method: 'POST', body: JSON.stri
   for (let i = 0; i < 5; i++) await M.locator(`input[name=q${i}][value="${4 + (i % 2)}"]`).check();
   await M.screenshot({ path: OUT + '/p-survey.png', fullPage: true });
   await M.click('#svGo'); await M.waitForTimeout(800); check('설문 제출', /감사합니다/.test(await M.textContent('#app')));
+  // 관리자 권한 세분화: 조회 전용 관리자는 설정·차수일정·메일 탭이 없고 역할이 표시됨
+  const adminEmail = (await rpc('adminEmails_'))[0];
+  await rpc('setSetting_', 'ADMIN_EMAILS', adminEmail + ', viewer@example.org'); await rpc('setSetting_', 'ADMIN_ROLES', 'viewer@example.org, 조회');
+  const V = await mk(); await login(V, 'viewer@example.org');
+  const vt = await V.$$eval('.tabs button', b => b.map(x => x.dataset.tab));
+  check('조회 전용 관리자 탭·표시 (' + vt.join(',') + ')', !vt.includes('settings') && !vt.includes('mail') && !vt.includes('sched') && vt.includes('projects') && /조회/.test(await V.textContent('.topbar .user')));
   console.log('오류:', errors.length ? errors : '없음');
   if (errors.length) process.exitCode = 1;
   await browser.close();

@@ -44,6 +44,7 @@ async function withUiServer(state, fn) {
 test('업로드 규칙 (test-ext)', () => expectPass('test-ext.js'));
 test('운영 안정성 (test-ops)', () => expectPass('test-ops.js'));
 test('고정 픽스처 생성', () => expectPass('fixture.js'));
+test('관리자 권한 세분화 — 픽스처 (test-roles)', () => expectPass('test-roles.js'));
 test('세부 기능 — 픽스처 (test-features)', () => expectPass('test-features.js', { STATE: 'state-fixture.json', STATE_OUT: 'state2-fixture.json' }));
 test('기본 화면 E2E + 넷리파이 — 픽스처', { skip: !UI && 'SKIP_UI=1' }, () => withUiServer('state-fixture.json', async () => {
   await expectPass('ui-test.js');

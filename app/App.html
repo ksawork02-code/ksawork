@@ -273,7 +273,7 @@ function adminBoot() {
     Object.assign(S, r);
     var years = uniq(S.projects.map(function (p) { return p['연도']; }).concat(S.apps.filter(function (a) { return a['구분'] === '본신청'; }).map(function (a) { return a['연도']; }))).sort();
     S.year = years[years.length - 1] || String(new Date().getFullYear());
-    shell(adminTabsList(), 'dash', adminTab, S.me.email + ' (관리자)');
+    shell(adminTabsList(), 'dash', adminTab, adminLabel());
   });
 }
 
