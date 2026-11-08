@@ -70,7 +70,7 @@ function makeEnv(opts = {}) {
           if (realDownloads <= 0) return { getResponseCode: () => 200, getBlob: () => new Blob(Buffer.from('stub'), 'application/pdf', 'x') };
           realDownloads--;
         }
-        if (/api\.solapi\.com/.test(url)) { (ctx.__sms = ctx.__sms || []).push({ url, headers: o.headers, body: JSON.parse(o.payload) }); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
+        if (/api\.solapi\.com/.test(url)) { (ctx.__sms = ctx.__sms || []).push({ url, headers: o.headers, body: JSON.parse(o.payload) }); const rp = ctx.__smsReply ? ctx.__smsReply() : [200, '{"statusCode":"2000","statusMessage":"정상 접수"}']; return { getResponseCode: () => rp[0], getContentText: () => rp[1] }; }
         if (/docs\.google\.com\/spreadsheets/.test(url)) return { getResponseCode: () => 200, getBlob: () => new Blob(Buffer.from('PK-xlsx'), 'application/xlsx', 'x.xlsx') };
         const args = ['-sS', '-m', '60', '-o', BODY, '-w', '%{http_code}', '-X', (o.method || 'get').toUpperCase()];
         Object.entries(o.headers || {}).forEach(([k, v]) => args.push('-H', k + ': ' + v));

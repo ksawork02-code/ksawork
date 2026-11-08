@@ -28,7 +28,7 @@ const srv = http.createServer((req, res) => {
   // 로그인 유지: iframe 저장소가 지워져도(사파리 제3자 저장소 차단) 래퍼가 토큰을 돌려준다
   await pg.goto('http://localhost:8899/');
   const fr = pg.frameLocator('#app');
-  await fr.locator('#email').fill('ksawork02@gmail.com'); await fr.locator('#sendBtn').click();
+  await fr.locator('#email').fill((await (await fetch('http://localhost:8787/rpc', { method: 'POST', body: JSON.stringify({ fn: 'adminEmails_', args: [] }) })).json()).result[0]); await fr.locator('#sendBtn').click();
   await fr.locator('#step2:not(.hidden)').waitFor();
   const code = await (await fetch('http://localhost:8787/otp')).text();
   await fr.locator('#code').fill(code); await fr.locator('#verifyBtn').click();
@@ -54,5 +54,6 @@ const srv = http.createServer((req, res) => {
 
   await pg.goto('http://localhost:8899/nope'); console.log('/nope          →', await pg.locator('.card h1').textContent());
   console.log('errors:', errs.length ? errs : 'none');
+  if (errs.length) process.exitCode = 1;
   await b.close(); srv.close();
 });

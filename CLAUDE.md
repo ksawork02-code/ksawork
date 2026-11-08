@@ -35,17 +35,20 @@
 ```
 npm install                      # playwright, clasp
 npx playwright install chromium  # 최초 1회
-export LARK_APP_SECRET=...        # Lark 실데이터 이관 테스트에 필요 (커밋 금지)
-node test/test-ext.js            # 업로드 규칙 (Lark 불필요)
-node test/test-ops.js            # 요청 간 캐시·이력 보관·토큰 제한·메일 한도 (Lark 불필요)
-node test/test-server.js         # 실제 Lark → 이관 → 전체 업무 흐름. test/state.json 생성
-node test/test-sync.js           # 전환기간 동기화 (Lark 응답을 캐시해 변조)
-node test/test-features.js       # 세부 기능 13종. test/state2.json 생성 (state.json 필요)
-node test/ui-server.js &         # 모의 서버 :8787 (STATE=state2.json 으로 데이터 선택)
-node test/ui-test.js             # 기본 화면 E2E
-STATE=state2.json node test/ui-server.js & node test/ui-test2.js   # 세부 기능 E2E (서버 새로 띄운 뒤 1회)
-node test/netlify-test.js        # 넷리파이 래퍼 (ui-server 필요)
+npm test                         # 전체: node:test로 아래를 순서대로 실행, 실패한 것만 출력
+npm run test:quick               # 브라우저 테스트 생략
+export LARK_APP_SECRET=...        # 있으면 실제 Lark 이관 테스트도 실행 (커밋 금지)
 ```
+| 파일 | 내용 | Lark |
+|---|---|---|
+| `test-ext.js` | 업로드 규칙 | 불필요 |
+| `test-ops.js` | 요청 간 캐시·이력 보관·토큰 제한·메일 한도·솔라피 오류 기록 | 불필요 |
+| `fixture.js` | 가상 데이터 픽스처 `state-fixture.json` 생성(개인정보 없음, 시드 고정) | 불필요 |
+| `test-features.js` | 세부 기능 13종. `STATE`(입력)·`STATE_OUT`(출력, 기본 state2.json) | 픽스처로 가능 |
+| `ui-test.js` `ui-test2.js` `netlify-test.js` | 화면 E2E. 모의 서버 `ui-server.js`(:8787, `STATE`로 데이터 선택)가 떠 있어야 함 | 픽스처로 가능 |
+| `test-server.js` `test-sync.js` | 실제 Lark → 이관 → 업무 흐름 / 전환기간 동기화. `state.json` 생성 | 필요 |
+
+개별 실행 예: `STATE=state2-fixture.json node test/ui-server.js &` 후 `node test/ui-test2.js`. 테스트의 관리자 계정은 데이터의 `ADMIN_EMAILS` 첫 번째 주소를 쓴다.
 - `test/state*.json`, 스크린샷은 실제 개인정보가 들어가므로 커밋하지 않는다(.gitignore).
 - `gas-mock.js`는 SpreadsheetApp/DriveApp/CacheService/PropertiesService/LockService/MailApp/UrlFetchApp/CalendarApp/Utilities를 흉내 낸다. 새 Apps Script API를 쓰면 여기에도 추가한다.
 - 모의 환경은 실환경과 다르다(6분 실행 제한, 쿼터, 권한 승인, 실제 메일 없음). 실환경 확인 목록은 `docs/결정사항.md` 하단.

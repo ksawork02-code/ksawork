@@ -84,11 +84,26 @@ function sendSms_(to, text, kind, relId) {
       headers: { Authorization: 'HMAC-SHA256 apiKey=' + key + ', date=' + date + ', salt=' + salt + ', signature=' + sig },
       payload: JSON.stringify({ message: { to: phone, from: String(setting_('SMS_SENDER')).replace(/\D/g, ''), text: String(text).slice(0, 1000) } })
     });
-    var code = res.getResponseCode();
-    if (code < 200 || code >= 300) throw new Error('HTTP ' + code + ' ' + res.getContentText().slice(0, 150));
+    var err = solapiError_(res.getResponseCode(), res.getContentText());
+    if (err) throw new Error(err);
   } catch (e) { result = '실패: ' + e.message; }
+  _lastSmsError = result === 'OK' ? '' : result;
   try { sheet_('메일이력').appendRow([now_(), phone, String(text).slice(0, 60), 'SMS:' + (kind || ''), relId || '', result]); } catch (e2) {}
   return result === 'OK';
+}
+
+var _lastSmsError = '';
+
+/** 솔라피 응답 → 오류 문구(정상이면 ''). HTTP 오류는 errorCode/errorMessage,
+ *  200이어도 statusCode가 2000(정상 접수)이 아니면 실패로 본다 */
+function solapiError_(code, text) {
+  var j = null;
+  try { j = JSON.parse(text); } catch (e) {}
+  if (code < 200 || code >= 300) {
+    return 'HTTP ' + code + (j && (j.errorCode || j.errorMessage) ? ' ' + [j.errorCode, j.errorMessage].filter(String).join(': ') : ' ' + String(text || '').slice(0, 150));
+  }
+  if (j && j.statusCode && String(j.statusCode) !== '2000') return '솔라피 ' + j.statusCode + ': ' + (j.statusMessage || '접수 실패');
+  return '';
 }
 
 function adminSaveSmsKeys(token, apiKey, apiSecret) {
@@ -103,7 +118,8 @@ function adminSaveSmsKeys(token, apiKey, apiSecret) {
 function adminSmsTest(token, phone) {
   session_(token, 'admin');
   if (!smsReady_()) throw new Error('문자 설정이 완료되지 않았습니다(SMS_ENABLED=Y, 발신번호, API 키 확인).');
-  if (!sendSms_(phone, '[컨설팅 관리] 문자 발송 테스트입니다.', '테스트', '')) throw new Error('발송 실패 — 메일 탭 발송 이력에서 오류를 확인하세요.');
+  if (!String(phone || '').replace(/\D/g, '')) throw new Error('받을 번호를 입력해 주세요.');
+  if (!sendSms_(phone, '[컨설팅 관리] 문자 발송 테스트입니다.', '테스트', '')) throw new Error('발송 실패: ' + String(_lastSmsError).replace(/^실패: /, '') + ' (메일 탭 발송 이력에도 기록됨)');
   return true;
 }
 

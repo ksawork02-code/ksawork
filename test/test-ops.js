@@ -84,4 +84,18 @@ env3.outbox.length = 0; K.requestOtp(admin); const tk = K.verifyOtp(admin, env3.
 assert.throws(() => K.adminSendMail(tk, new Array(6).fill(0).map((_, i) => ({ email: i + '@x.com' })), 's', 'b'), /보낼 수 있는 메일은 5건/);
 ok('일괄 메일: 예약분을 뺀 한도로 사전 차단');
 
+console.log('5) 문자(솔라피) 오류 기록');
+const env4 = makeEnv({ quiet: true }); const Q = env4.ctx; Q.setup();
+Q.setSetting_('ADMIN_EMAILS', admin); Q._cache = {};
+env4.outbox.length = 0; Q.requestOtp(admin); const qt = Q.verifyOtp(admin, env4.outbox[0].subject.match(/(\d{6})/)[1]).token;
+Q.adminSaveSmsKeys(qt, 'KEY', 'SECRET'); Q.setSetting_('SMS_ENABLED', 'Y'); Q.setSetting_('SMS_SENDER', '0212345678'); Q._cache = {};
+const smsLog = () => env4.active.getSheetByName('메일이력').data.slice(-1)[0][5];
+assert(Q.sendSms_('010-1111-2222', 'hi', '시험', '')); assert.strictEqual(smsLog(), 'OK');
+Q.__smsReply = () => [400, '{"errorCode":"ValidationError","errorMessage":"발신번호가 등록되지 않았습니다."}'];
+assert(!Q.sendSms_('010-1111-2222', 'hi', '시험', '')); assert(/HTTP 400 ValidationError: 발신번호가 등록되지 않았습니다/.test(smsLog()), smsLog());
+Q.__smsReply = () => [200, '{"statusCode":"3059","statusMessage":"변작된 발신번호"}'];
+assert(!Q.sendSms_('010-1111-2222', 'hi', '시험', '')); assert(/솔라피 3059: 변작된 발신번호/.test(smsLog()), smsLog());
+assert.throws(() => Q.adminSmsTest(qt, '010-1111-2222'), /발송 실패: 솔라피 3059: 변작된 발신번호/);
+ok('HTTP 오류·접수 실패(statusCode≠2000) 응답 문구를 발송 이력과 테스트 발송 오류에 그대로 표시');
+
 console.log('\n운영 안정성 테스트 통과');

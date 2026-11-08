@@ -15,8 +15,8 @@ const rpc = (fn, ...args) => fetch(B + '/rpc', { method: 'POST', body: JSON.stri
   };
   const shot = (p, n) => p.screenshot({ path: `${OUT}/${n}.png` });
   const tab = async (p, t) => { await p.click(`[data-tab=${t}]`); await p.waitForTimeout(700); };
-  const check = (name, cond) => console.log((cond ? '  ✓ ' : '  ✗ ') + name);
-  const A = await mk(); const AT = await login(A, 'ksawork02@gmail.com');
+  const check = (name, cond) => { console.log((cond ? '  ✓ ' : '  ✗ ') + name); if (!cond) process.exitCode = 1; };
+  const A = await mk(); const AT = await login(A, (await rpc('adminEmails_'))[0]);
   const tabs = await A.$$eval('.tabs button', b => b.map(x => x.textContent)); console.log('관리자 탭:', tabs.join(' | '));
   await tab(A, 'visits'); check('일정 달력', await A.locator('.cal-cell').count() > 27); await shot(A, 'a-visits');
   await A.click('[data-ym="2026-11"]').catch(() => {}); await A.waitForTimeout(500);
@@ -85,5 +85,6 @@ const rpc = (fn, ...args) => fetch(B + '/rpc', { method: 'POST', body: JSON.stri
   await M.screenshot({ path: OUT + '/p-survey.png', fullPage: true });
   await M.click('#svGo'); await M.waitForTimeout(800); check('설문 제출', /감사합니다/.test(await M.textContent('#app')));
   console.log('오류:', errors.length ? errors : '없음');
+  if (errors.length) process.exitCode = 1;
   await browser.close();
 })();
