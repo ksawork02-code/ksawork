@@ -5,7 +5,7 @@ const ok = m => console.log('  ✓', m);
 const throws = (fn, re, m) => { try { fn(); } catch (e) { assert(re.test(e.message), m + ' → ' + e.message); return ok(m + ' (' + e.message.slice(0, 45) + ')'); } assert.fail(m + ' should throw'); };
 const sheet = n => { G._cache = {}; return G.all_(n); };
 G.setup();
-JSON.parse(fs.readFileSync(__dirname + '/state.json')).sheets.forEach(([n, d]) => { const sh = env.active.getSheetByName(n) || env.active.insertSheet(n); sh.data = d; });
+JSON.parse(fs.readFileSync(__dirname + '/' + (process.env.STATE || 'state.json'))).sheets.forEach(([n, d]) => { const sh = env.active.getSheetByName(n) || env.active.insertSheet(n); sh.data = d; });
 G._cache = {}; G.setup(); G._cache = {};
 const login = email => { env.outbox.length = 0; G._cache = {}; G.requestOtp(email); const code = env.outbox[0].subject.match(/(\d{6})/)[1]; return G.verifyOtp(email, code).token; };
 const hwpx = { name: 'r.hwpx', mime: '', b64: Buffer.from('PK\x03\x04x').toString('base64') };
@@ -15,7 +15,7 @@ console.log('0) 설치');
 assert(sheet('수당기준').length === 3); assert(G.options_().서류종류.length === 4); assert(G.options_().체크리스트.최종.length >= 5);
 ['일정', '서류', '만족도', '교육신청', '정산', '공지', '공지읽음', '문의'].forEach(n => assert(env.active.getSheetByName(n), n));
 assert(G.headers_('교육').includes('정원') && G.headers_('보고서').includes('체크리스트')); ok('새 시트 8개, 기존 시트 열 추가, 수당기준 기본 3행');
-const AT = login('ksawork02@gmail.com');
+const AT = login(G.adminEmails_()[0]);
 const cons = sheet('컨설턴트'), projs = sheet('사업장');
 const cnt = {}; projs.forEach(p => String(p['컨설턴트ID']).split(',').forEach(i => cnt[i] = (cnt[i] || 0) + 1));
 const c1 = cons.filter(c => c['상태'] === '활동' && c['이메일'] && c['구분'] === '외부').sort((a, b) => (cnt[b.ID] || 0) - (cnt[a.ID] || 0))[0];
@@ -57,7 +57,7 @@ assert.strictEqual(sheet('정산').length, 0); ok('보완요청 상태에서는 
 d = G.submitReport(CT, P.ID, '중간', [hwpx], '보완'); d = G.adminReviewSubmission(AT, d.submissions[0].ID, '검수완료', '', null);
 let fees = sheet('정산'); const nC = G.splitIds_(P['컨설턴트ID']).length;
 assert.strictEqual(fees.length, nC); assert.strictEqual(fees[0]['금액'], String(Math.round(500000 / nC))); ok('검수완료 → 정산 ' + fees.length + '건 생성, 금액 ' + fees[0]['금액']);
-G.adminUpdateProject(AT, P.ID, { 비고: 'x' }); G.adminRebuildSettlements(AT); assert.strictEqual(sheet('정산').length, nC); ok('재계산해도 중복 없음');
+G.adminUpdateProject(AT, P.ID, { 비고: 'x' }); G.adminRebuildSettlements(AT); assert.strictEqual(sheet('정산').filter(f => f['사업장ID'] === P.ID).length, nC); ok('재계산해도 중복 없음');
 let L = G.adminUpdateSettlements(AT, [fees[0].ID], { 상태: '지급완료' }); assert(L.list.find(f => f.ID === fees[0].ID)['지급일']); ok('지급완료 처리(지급일 자동)');
 assert(G.getProjectDetail(CT, P.ID).extra.settlements.length >= 1); ok('컨설턴트 본인 정산 조회');
 
@@ -126,4 +126,4 @@ d = G.submitReport(CT, P.ID, '최종', [hwpx], ''); G.adminReviewSubmission(AT, 
 assert((G.__sms || []).length > before); ok('보완요청 문자 자동 발송');
 assert(G.adminBadges_() && G.adminBootstrap(AT).sms === true); ok('관리자 부트스트랩 배지·문자 상태');
 console.log('\n세부기능 테스트 통과');
-fs.writeFileSync(__dirname + '/state2.json', JSON.stringify({ sheets: env.active.getSheets().map(s => [s.getName(), s.data]) }));
+fs.writeFileSync(__dirname + '/' + (process.env.STATE_OUT || 'state2.json'), JSON.stringify({ sheets: env.active.getSheets().map(s => [s.getName(), s.data]) }));

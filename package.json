@@ -4,13 +4,14 @@
   "private": true,
   "description": "산업일자리전환 컨설팅 관리 앱 (Google Apps Script) - 로컬 테스트 하네스",
   "scripts": {
-    "test": "node test/test-ext.js && node test/test-server.js && node test/test-sync.js && node test/test-features.js",
-    "test:quick": "node test/test-ext.js",
+    "test": "node --test-reporter=spec test/run-all.js",
+    "test:quick": "SKIP_UI=1 node --test-reporter=spec test/run-all.js",
     "ui:server": "node test/ui-server.js",
     "ui:test": "node test/ui-test.js",
     "ui:test2": "node test/ui-test2.js",
     "push": "clasp push",
-    "deploy": "clasp deploy"
+    "deploy": "clasp deploy",
+    "fixture": "node test/fixture.js"
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2",

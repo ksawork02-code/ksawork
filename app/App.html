@@ -10,8 +10,10 @@ function chasuOrder(c) { return parseInt(c, 10) || 999; }
 
 /* ================= 시작 ================= */
 (function boot() {
-  if (!tok()) return showLogin();
-  call('me', tok()).then(function (u) { startRole(u); }, function () { setToken(''); showLogin(); });
+  restoreToken(function () {
+    if (!tok()) return showLogin();
+    call('me', tok()).then(function (u) { startRole(u); }, function () { setToken(''); showLogin(); });
+  });
 })();
 
 function startRole(u) {
@@ -271,7 +273,7 @@ function adminBoot() {
     Object.assign(S, r);
     var years = uniq(S.projects.map(function (p) { return p['연도']; }).concat(S.apps.filter(function (a) { return a['구분'] === '본신청'; }).map(function (a) { return a['연도']; }))).sort();
     S.year = years[years.length - 1] || String(new Date().getFullYear());
-    shell(adminTabsList(), 'dash', adminTab, S.me.email + ' (관리자)');
+    shell(adminTabsList(), 'dash', adminTab, adminLabel());
   });
 }
 
@@ -448,6 +450,8 @@ var PROJ_COLS = [
   { k: '사후검수', l: '사후', f: function (p) { return reportCell(p, '사후'); }, nw: 1 },
   { k: '수행일지수', l: '일지', f: function (p) { return esc(p['수행일지수'] || '0') + (p['수행일지_이관'] ? '<span class="small muted"> (이관 ' + esc(p['수행일지_이관']) + ')</span>' : ''); }, s: function (p) { return Number(p['수행일지수']) || 0; } },
   { k: '정책연계여부', l: '정책연계', f: function (p) { return badge(p['정책연계여부']) + '<div class="small muted">' + esc(String(p['정책연계사업'] || '').slice(0, 30)) + '</div>'; }, x: function (p) { return p['정책연계여부'] + ' ' + (p['정책연계사업'] || ''); } },
+  { k: '_서류', l: '서류', f: function (p) { var s = p._서류 || {}; return s.전체 ? '<span class="badge ' + (s.확인 === s.전체 ? 'b-ok' : s.누락 + s.반려 ? 'b-warn' : 'b-info') + '">' + (s.확인 || 0) + '/' + s.전체 + '</span>' : ''; }, s: function (p) { return (p._서류 || {}).확인 || 0; }, x: function (p) { var s = p._서류 || {}; return (s.확인 || 0) + '/' + (s.전체 || 0); } },
+  { k: '_만족도', l: '만족도', f: function (p) { return p._만족도 ? '<b>' + p._만족도.평균 + '</b>' : ''; }, s: function (p) { return p._만족도 ? p._만족도.평균 : 0; }, x: function (p) { return p._만족도 ? p._만족도.평균 : ''; } },
   { k: '_next', l: '다음 기한', f: function (p) { return p._next ? esc(p._next.종류) + ' ' + ddBadge(p._next.dday) : '<span class="muted small">' + esc(p._단계) + '</span>'; }, s: function (p) { return p._next && p._next.dday !== null ? p._next.dday : 9999; }, x: function (p) { return p._next ? p._next.종류 + ' ' + p._next.기한 : p._단계; }, nw: 1 }
 ];
 var PROJ_EXPORT = [{ k: '차수' }, { k: '사업장명' }, { k: '컨설턴트명' }, { k: '착수현황' }, { k: '착수일' }, { k: '종료일' }, { k: '중간기한' }, { k: '중간검수' }, { k: '중간제출일' },
@@ -465,14 +469,21 @@ function renderProjects() {
     '<select data-f="컨설턴트"><option value="">전체 컨설턴트</option>' + cons.map(function (c) { return '<option value="' + c.ID + '"' + (f['컨설턴트'] === c.ID ? ' selected' : '') + '>' + esc(c['성명']) + '</option>'; }).join('') + '</select>' +
     '<select data-f="착수현황">' + opts(S.options.착수현황, f['착수현황'], '착수 전체') + '</select>' +
     '<select data-f="상태">' + opts(['검수 필요', '보완요청', '기한 초과', '7일 내 기한', '정책연계 미입력'], f['상태'], '상태 전체') + '</select>' +
+    '<select data-f="서류" style="width:auto">' + opts(['누락·반려', '확인 대기', '완료'], f['서류'], '서류 전체') + '</select>' +
     '<input type="search" data-f="q" placeholder="사업장·컨설턴트 검색" value="' + esc(f.q) + '">' +
     '<span class="count" id="cnt"></span><span class="grow"></span>' +
     '<select id="viewSel"><option value="table">표</option><option value="k착수현황"' + (view === 'k착수현황' ? ' selected' : '') + '>칸반: 착수현황</option><option value="k단계"' + (view === 'k단계' ? ' selected' : '') + '>칸반: 진행단계</option><option value="k차수"' + (view === 'k차수' ? ' selected' : '') + '>칸반: 차수</option></select>' +
-    '<button class="btn sm" id="xls">엑셀</button><button class="btn sm" id="rl">새로고침</button></div><div id="list"></div>';
+    '<button class="btn sm" id="svBulk">만족도 설문 발송</button><button class="btn sm" id="xls">엑셀</button><button class="btn sm" id="rl">새로고침</button></div><div id="list"></div>';
   $$('[data-f]').forEach(function (el) { el[el.tagName === 'INPUT' ? 'oninput' : 'onchange'] = function () { f[el.dataset.f] = el.value; drawProjects(); }; });
   $('#viewSel').onchange = function () { S.view.proj = this.value; drawProjects(); };
   $('#xls').onclick = function () { exportXlsx('사업장목록', PROJ_EXPORT, filterProjects()); };
   $('#rl').onclick = function () { busy('새로고침...'); reload('projects').then(function () { busy(false); drawProjects(); }); };
+  $('#svBulk').onclick = function () {
+    var rows = filterProjects().filter(function (p) { return p['최종검수'] === '검수완료' && !p._만족도; });
+    if (!rows.length) return toast('현재 목록에 최종보고 검수완료 + 미응답 사업장이 없습니다.', true);
+    if (!confirm('현재 목록 중 최종보고 검수완료 사업장 ' + rows.length + '곳 담당자에게 설문을 보낼까요? (이미 보낸 곳은 건너뜀)')) return;
+    run('발송 중...', 'adminSendSurvey', tok(), rows.map(function (p) { return p.ID; }), false).then(function (r) { toast(r.sent + '곳 발송' + (r.skipped.length ? ' · 건너뜀 ' + r.skipped.length : '')); });
+  };
   drawProjects();
 }
 function filterProjects() {
@@ -488,6 +499,10 @@ function filterProjects() {
     if (f['상태'] === '기한 초과' && !(p._next && p._next.dday !== null && p._next.dday < 0)) return false;
     if (f['상태'] === '7일 내 기한' && !(p._next && p._next.dday !== null && p._next.dday >= 0 && p._next.dday <= 7)) return false;
     if (f['상태'] === '정책연계 미입력' && p['정책연계여부']) return false;
+    var ds = p._서류 || {};
+    if (f['서류'] === '누락·반려' && !((ds.누락 || 0) + (ds.반려 || 0) > 0)) return false;
+    if (f['서류'] === '확인 대기' && !((ds.대기 || 0) > 0)) return false;
+    if (f['서류'] === '완료' && !(ds.전체 && ds.확인 === ds.전체)) return false;
     if (q && [p['사업장명'], p['컨설턴트명'], p.ID].join(' ').toLowerCase().indexOf(q) < 0) return false;
     return true;
   });
@@ -731,13 +746,6 @@ function renderSched() {
         toast('저장했습니다.' + (apply ? ' 사업장 ' + r.applied + '곳 적용' : ''));
         (apply ? reload('projects') : Promise.resolve()).then(renderSched);
       });
-    };
-  });
-  $$('[data-ts]').forEach(function (b) {
-    b.onclick = function () {
-      var tr = b.closest('tr'), t = { ID: tr.dataset.tid };
-      $$('[data-c]', tr).forEach(function (i) { t[i.dataset.c] = i.value.trim(); });
-      run('저장 중...', 'adminSaveTraining', tok(), t).then(function (r) { S.trainings = r; toast('저장했습니다.'); renderSched(); });
     };
   });
 }

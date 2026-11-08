@@ -25,7 +25,35 @@ const srv = http.createServer((req, res) => {
   }
   await pg.goto('http://localhost:8899/apply'); await pg.frameLocator('#app').locator('#f').waitFor();
   await pg.screenshot({ path: __dirname + '/shots/netlify-apply.png' });
+  // 로그인 유지: iframe 저장소가 지워져도(사파리 제3자 저장소 차단) 래퍼가 토큰을 돌려준다
+  await pg.goto('http://localhost:8899/');
+  const fr = pg.frameLocator('#app');
+  await fr.locator('#email').fill((await (await fetch('http://localhost:8787/rpc', { method: 'POST', body: JSON.stringify({ fn: 'adminEmails_', args: [] }) })).json()).result[0]); await fr.locator('#sendBtn').click();
+  await fr.locator('#step2:not(.hidden)').waitFor();
+  const code = await (await fetch('http://localhost:8787/otp')).text();
+  await fr.locator('#code').fill(code); await fr.locator('#verifyBtn').click();
+  await fr.locator('#view').waitFor({ timeout: 20000 });
+  const wtok = await pg.evaluate(() => localStorage.getItem('ccm_token'));
+  if (!/^[0-9a-f]{40}$/.test(wtok || '')) throw new Error('래퍼에 토큰이 저장되지 않음');
+  const appFrame = () => pg.frames().find(f => f.url().startsWith('http://localhost:8787'));
+  await appFrame().evaluate(() => localStorage.clear());
+  await pg.reload();
+  await pg.frameLocator('#app').locator('#view').waitFor({ timeout: 20000 });
+  console.log('iframe 저장소 삭제 후 로그인 유지: OK');
+  // 우리 iframe 밖의 창이 요청하면 토큰을 주지 않는다
+  const leaked = await pg.evaluate(() => new Promise(r => {
+    window.addEventListener('message', e => { if (e.data && e.data.ccm === 'token') r(e.data.t); });
+    window.postMessage({ ccm: 'need' }, '*'); setTimeout(() => r('none'), 800);
+  }));
+  if (leaked !== 'none') throw new Error('외부 요청에 토큰 응답');
+  console.log('외부 창 토큰 요청 거부: OK');
+  await pg.frameLocator('#app').locator('#logoutBtn').click();
+  await pg.frameLocator('#app').locator('#email').waitFor({ timeout: 15000 });
+  if (await pg.evaluate(() => localStorage.getItem('ccm_token'))) throw new Error('로그아웃 후 래퍼 토큰 남음');
+  console.log('로그아웃 시 래퍼 토큰 삭제: OK');
+
   await pg.goto('http://localhost:8899/nope'); console.log('/nope          →', await pg.locator('.card h1').textContent());
   console.log('errors:', errs.length ? errs : 'none');
+  if (errs.length) process.exitCode = 1;
   await b.close(); srv.close();
 });

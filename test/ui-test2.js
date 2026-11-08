@@ -15,8 +15,8 @@ const rpc = (fn, ...args) => fetch(B + '/rpc', { method: 'POST', body: JSON.stri
   };
   const shot = (p, n) => p.screenshot({ path: `${OUT}/${n}.png` });
   const tab = async (p, t) => { await p.click(`[data-tab=${t}]`); await p.waitForTimeout(700); };
-  const check = (name, cond) => console.log((cond ? '  ✓ ' : '  ✗ ') + name);
-  const A = await mk(); const AT = await login(A, 'ksawork02@gmail.com');
+  const check = (name, cond) => { console.log((cond ? '  ✓ ' : '  ✗ ') + name); if (!cond) process.exitCode = 1; };
+  const A = await mk(); const AT = await login(A, (await rpc('adminEmails_'))[0]);
   const tabs = await A.$$eval('.tabs button', b => b.map(x => x.textContent)); console.log('관리자 탭:', tabs.join(' | '));
   await tab(A, 'visits'); check('일정 달력', await A.locator('.cal-cell').count() > 27); await shot(A, 'a-visits');
   await A.click('[data-ym="2026-11"]').catch(() => {}); await A.waitForTimeout(500);
@@ -34,6 +34,13 @@ const rpc = (fn, ...args) => fetch(B + '/rpc', { method: 'POST', body: JSON.stri
   await A.evaluate(() => { document.querySelector('#smsBox').scrollIntoView(); window.scrollBy(0, -70); }); await shot(A, 'a-sms');
   // 사업장 상세 새 탭
   await tab(A, 'projects'); check('서류·만족도 열', (await A.$$eval('table.t th', t => t.map(x => x.textContent))).some(t => t.startsWith('서류')));
+  {
+    const cnt = async () => parseInt(await A.textContent('#cnt'), 10);
+    const all = await cnt(), n = {};
+    for (const o of ['누락·반려', '확인 대기', '완료']) { await A.selectOption('[data-f=서류]', o); await A.waitForTimeout(200); n[o] = await cnt(); }
+    await A.selectOption('[data-f=서류]', ''); await A.waitForTimeout(200);
+    check('서류 필터·설문 일괄 발송 버튼 (' + JSON.stringify(n) + ' / ' + all + ')', Object.values(n).some(x => x < all) && await cnt() === all && await A.locator('#svBulk').count() === 1);
+  }
   const visits = await rpc('all_', '일정'); const pid = visits[0]['사업장ID']; const P = (await rpc('all_', '사업장')).find(p => p.ID === pid);
   await A.fill('[data-f=q]', P['사업장명']); await A.waitForTimeout(300); await A.click('table.t tbody tr'); await A.waitForSelector('#subBody');
   for (const s of ['visits', 'docs', 'reports', 'survey']) { await A.click(`[data-sub=${s}]`); await A.waitForTimeout(400); await shot(A, 'a-proj-' + s); }
@@ -77,6 +84,13 @@ const rpc = (fn, ...args) => fetch(B + '/rpc', { method: 'POST', body: JSON.stri
   for (let i = 0; i < 5; i++) await M.locator(`input[name=q${i}][value="${4 + (i % 2)}"]`).check();
   await M.screenshot({ path: OUT + '/p-survey.png', fullPage: true });
   await M.click('#svGo'); await M.waitForTimeout(800); check('설문 제출', /감사합니다/.test(await M.textContent('#app')));
+  // 관리자 권한 세분화: 조회 전용 관리자는 설정·차수일정·메일 탭이 없고 역할이 표시됨
+  const adminEmail = (await rpc('adminEmails_'))[0];
+  await rpc('setSetting_', 'ADMIN_EMAILS', adminEmail + ', viewer@example.org'); await rpc('setSetting_', 'ADMIN_ROLES', 'viewer@example.org, 조회');
+  const V = await mk(); await login(V, 'viewer@example.org');
+  const vt = await V.$$eval('.tabs button', b => b.map(x => x.dataset.tab));
+  check('조회 전용 관리자 탭·표시 (' + vt.join(',') + ')', !vt.includes('settings') && !vt.includes('mail') && !vt.includes('sched') && vt.includes('projects') && /조회/.test(await V.textContent('.topbar .user')));
   console.log('오류:', errors.length ? errors : '없음');
+  if (errors.length) process.exitCode = 1;
   await browser.close();
 })();

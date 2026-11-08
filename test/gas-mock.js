@@ -23,6 +23,7 @@ function makeEnv(opts = {}) {
     getRange(r, c, nr, nc) { if (typeof r === 'string') throw new Error('A1 not supported'); return new Range(this, r, c, nr, nc); }
     appendRow(row) { this.data[this.getLastRow()] = row.map(String); return this; }
     deleteRow(r) { this.data.splice(r - 1, 1); }
+    deleteRows(r, n) { this.data.splice(r - 1, n); }
     getMaxColumns() { return Math.max(26, this.cols); } deleteColumns() { this.cols = this.getLastColumn(); }
     getMaxRows() { return this.maxRows; } setFrozenRows() {} hideSheet() {}
   }
@@ -69,7 +70,7 @@ function makeEnv(opts = {}) {
           if (realDownloads <= 0) return { getResponseCode: () => 200, getBlob: () => new Blob(Buffer.from('stub'), 'application/pdf', 'x') };
           realDownloads--;
         }
-        if (/api\.solapi\.com/.test(url)) { (ctx.__sms = ctx.__sms || []).push({ url, headers: o.headers, body: JSON.parse(o.payload) }); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
+        if (/api\.solapi\.com/.test(url)) { (ctx.__sms = ctx.__sms || []).push({ url, headers: o.headers, body: JSON.parse(o.payload) }); const rp = ctx.__smsReply ? ctx.__smsReply() : [200, '{"statusCode":"2000","statusMessage":"정상 접수"}']; return { getResponseCode: () => rp[0], getContentText: () => rp[1] }; }
         if (/docs\.google\.com\/spreadsheets/.test(url)) return { getResponseCode: () => 200, getBlob: () => new Blob(Buffer.from('PK-xlsx'), 'application/xlsx', 'x.xlsx') };
         const args = ['-sS', '-m', '60', '-o', BODY, '-w', '%{http_code}', '-X', (o.method || 'get').toUpperCase()];
         Object.entries(o.headers || {}).forEach(([k, v]) => args.push('-H', k + ': ' + v));
@@ -81,9 +82,11 @@ function makeEnv(opts = {}) {
         return { getResponseCode: () => code, getContentText: () => body.toString('utf8'), getBlob: () => new Blob(body, 'application/octet-stream', 'dl') };
       }
     },
-    CacheService: { getScriptCache: () => ({ get: k => cache[k] === undefined ? null : cache[k], put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
+    CacheService: { getScriptCache: () => ({ get: k => cache[k] === undefined ? null : cache[k], put: (k, v) => { if (String(v).length > 100000) throw new Error('cache value too large'); cache[k] = String(v); }, remove: k => { delete cache[k]; },
+      getAll: ks => { const o = {}; ks.forEach(k => { if (cache[k] !== undefined) o[k] = cache[k]; }); return o; },
+      putAll: o => { Object.keys(o).forEach(k => { if (String(o[k]).length > 100000) throw new Error('cache value too large'); cache[k] = String(o[k]); }); } }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] === undefined ? null : props[k], setProperty: (k, v) => { props[k] = String(v); }, deleteProperty: k => { delete props[k]; }, getProperties: () => Object.assign({}, props) }) },
-    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ waitLock() {}, tryLock() { return true; }, releaseLock() {} }) },
     MailApp: { sendEmail: o => outbox.push(o), getRemainingDailyQuota: () => opts.quota === undefined ? 100 : opts.quota },
     ScriptApp: {
       getProjectTriggers: () => triggers.slice(), deleteTrigger: t => triggers.splice(triggers.indexOf(t), 1),

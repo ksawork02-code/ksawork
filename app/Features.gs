@@ -84,15 +84,30 @@ function sendSms_(to, text, kind, relId) {
       headers: { Authorization: 'HMAC-SHA256 apiKey=' + key + ', date=' + date + ', salt=' + salt + ', signature=' + sig },
       payload: JSON.stringify({ message: { to: phone, from: String(setting_('SMS_SENDER')).replace(/\D/g, ''), text: String(text).slice(0, 1000) } })
     });
-    var code = res.getResponseCode();
-    if (code < 200 || code >= 300) throw new Error('HTTP ' + code + ' ' + res.getContentText().slice(0, 150));
+    var err = solapiError_(res.getResponseCode(), res.getContentText());
+    if (err) throw new Error(err);
   } catch (e) { result = '실패: ' + e.message; }
+  _lastSmsError = result === 'OK' ? '' : result;
   try { sheet_('메일이력').appendRow([now_(), phone, String(text).slice(0, 60), 'SMS:' + (kind || ''), relId || '', result]); } catch (e2) {}
   return result === 'OK';
 }
 
+var _lastSmsError = '';
+
+/** 솔라피 응답 → 오류 문구(정상이면 ''). HTTP 오류는 errorCode/errorMessage,
+ *  200이어도 statusCode가 2000(정상 접수)이 아니면 실패로 본다 */
+function solapiError_(code, text) {
+  var j = null;
+  try { j = JSON.parse(text); } catch (e) {}
+  if (code < 200 || code >= 300) {
+    return 'HTTP ' + code + (j && (j.errorCode || j.errorMessage) ? ' ' + [j.errorCode, j.errorMessage].filter(String).join(': ') : ' ' + String(text || '').slice(0, 150));
+  }
+  if (j && j.statusCode && String(j.statusCode) !== '2000') return '솔라피 ' + j.statusCode + ': ' + (j.statusMessage || '접수 실패');
+  return '';
+}
+
 function adminSaveSmsKeys(token, apiKey, apiSecret) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var pr = PropertiesService.getScriptProperties();
   if (apiKey) pr.setProperty('SMS_API_KEY', String(apiKey).trim());
   if (apiSecret) pr.setProperty('SMS_API_SECRET', String(apiSecret).trim());
@@ -101,15 +116,16 @@ function adminSaveSmsKeys(token, apiKey, apiSecret) {
 }
 
 function adminSmsTest(token, phone) {
-  session_(token, 'admin');
+  session_(token, 'manage');
   if (!smsReady_()) throw new Error('문자 설정이 완료되지 않았습니다(SMS_ENABLED=Y, 발신번호, API 키 확인).');
-  if (!sendSms_(phone, '[컨설팅 관리] 문자 발송 테스트입니다.', '테스트', '')) throw new Error('발송 실패 — 메일 탭 발송 이력에서 오류를 확인하세요.');
+  if (!String(phone || '').replace(/\D/g, '')) throw new Error('받을 번호를 입력해 주세요.');
+  if (!sendSms_(phone, '[컨설팅 관리] 문자 발송 테스트입니다.', '테스트', '')) throw new Error('발송 실패: ' + String(_lastSmsError).replace(/^실패: /, '') + ' (메일 탭 발송 이력에도 기록됨)');
   return true;
 }
 
 /** 일괄 문자: list = [{phone, id, vars}] */
 function adminSendSmsBulk(token, list, text) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'edit');
   if (!smsReady_()) throw new Error('문자 설정이 완료되지 않았습니다.');
   var ok = 0;
   (list || []).forEach(function (t) {
@@ -212,7 +228,8 @@ function markVisitDone_(projectId, date, user) {
 /** 일정 목록 (달력용): from~to (yyyy-MM-dd) */
 function listVisits(token, from, to) {
   var s = session_(token);
-  var mine = s.role === 'admin' ? null : all_('사업장').filter(function (p) { return splitIds_(p['컨설턴트ID']).indexOf(s.consultantId) >= 0; }).map(function (p) { return p.ID; });
+  var mine = s.role === 'admin' ? (regionLimited_(s) ? all_('사업장').filter(function (p) { return inRegion_(s, projectRegion_(p)); }).map(function (p) { return p.ID; }) : null)
+    : all_('사업장').filter(function (p) { return splitIds_(p['컨설턴트ID']).indexOf(s.consultantId) >= 0; }).map(function (p) { return p.ID; });
   var pm = {};
   all_('사업장').forEach(function (p) { pm[p.ID] = p; });
   return all_('일정').filter(function (v) {
@@ -258,10 +275,11 @@ function uploadDoc(token, projectId, kind, files) {
 }
 
 function adminReviewDoc(token, docId, result, comment) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'review');
   if (['확인', '반려', '대기'].indexOf(result) < 0) throw new Error('결과를 선택해 주세요.');
   var d = find_('서류', docId);
   if (!d) throw new Error('서류 없음');
+  scopeProjectId_(s, d['사업장ID']);
   update_('서류', docId, { 확인: result, 의견: comment || '', 확인자: s.email, 확인일: now_() }, s.email);
   if (result === '반려') {
     var p = find_('사업장', d['사업장ID']);
@@ -295,11 +313,12 @@ function surveyMap_() {
 
 /** 설문 발송 (사업장 여러 곳) */
 function adminSendSurvey(token, projectIds, resend) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'edit');
   var sent = 0, skipped = [];
   (projectIds || []).forEach(function (pid) {
     var p = find_('사업장', pid);
     if (!p) return;
+    if (!inRegion_(s, projectRegion_(p))) { skipped.push(p['사업장명'] + '(담당 지역 아님)'); return; }
     var a = companyOf_(p);
     if (!a['담당자이메일']) { skipped.push(p['사업장명'] + '(이메일 없음)'); return; }
     var ex = all_('만족도').filter(function (x) { return x['사업장ID'] === pid; });
@@ -340,7 +359,7 @@ function submitSurvey(t, scores, comment, name) {
 var EDIT_TRAINING = ['교육명', '일자', '시간', '비고', '방식', '장소', '정원', '신청시작', '신청마감', '상태', '필수', '설명'];
 
 function adminSaveTrainingFull(token, t) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var d = clean_(t, EDIT_TRAINING);
   req_(d, ['교육명']);
   d['상태'] = d['상태'] || '모집';
@@ -418,7 +437,7 @@ function adminTrainingDetail(token, trainingId) {
 
 /** 출석 처리: 수료 → 이수시간 기록, 불참 → 이수 삭제 */
 function adminSetAttendance(token, trainingId, consultantIds, attended, hours) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var t = find_('교육', trainingId);
   if (!t) throw new Error('교육 없음');
   var h = String(hours || t['시간'] || '').replace(/[^0-9.]/g, '');
@@ -464,7 +483,7 @@ function syncSettlements_(projectId) {
 }
 
 function adminRebuildSettlements(token) {
-  session_(token, 'admin');
+  session_(token, 'manage');
   var n = 0;
   all_('사업장').forEach(function (p) { n += syncSettlements_(p.ID); _cache = {}; });
   return { created: n, list: adminListSettlements(token).list };
@@ -473,7 +492,7 @@ function adminRebuildSettlements(token) {
 function adminFeeRules(token) { session_(token, 'admin'); return all_('수당기준').map(strip_); }
 
 function adminSaveFeeRules(token, rules) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var sh = sheet_('수당기준'), h = headers_('수당기준');
   var rows = (rules || []).filter(function (r) { return String(r['항목'] || '').trim(); }).map(function (r) {
     if (['중간', '최종', '사후'].indexOf(r['보고서']) < 0) throw new Error('보고서는 중간·최종·사후 중 하나여야 합니다: ' + r['항목']);
@@ -483,17 +502,18 @@ function adminSaveFeeRules(token, rules) {
   if (lr > 1) sh.getRange(2, 1, lr - 1, h.length).setValues(new Array(lr - 1).fill(0).map(function () { return h.map(function () { return ''; }); }));
   if (rows.length) sh.getRange(2, 1, rows.length, h.length).setNumberFormat('@').setValues(rows);
   delete _cache['수당기준'];
+  bumpVersion_('수당기준');
   audit_(s.email, '수당기준 저장', '수당기준', '', '', '', rows.length + '개');
   return all_('수당기준').map(strip_).filter(function (r) { return r['항목']; });
 }
 
 function adminListSettlements(token) {
-  session_(token, 'admin');
+  var s = session_(token, 'admin');
   var pm = {}, cm = {};
   all_('사업장').forEach(function (p) { pm[p.ID] = p; });
   all_('컨설턴트').forEach(function (c) { cm[c.ID] = c; });
   return {
-    list: all_('정산').map(function (f) {
+    list: all_('정산').filter(function (f) { return !regionLimited_(s) || (pm[f['사업장ID']] && inRegion_(s, projectRegion_(pm[f['사업장ID']]))); }).map(function (f) {
       var o = strip_(f), p = pm[f['사업장ID']] || {}, c = cm[f['컨설턴트ID']] || {};
       o._사업장명 = p['사업장명'] || ''; o._차수 = p['차수'] || ''; o._연도 = p['연도'] || '';
       o._컨설턴트명 = c['성명'] || ''; o._구매처코드 = c['구매처코드'] || '';
@@ -504,7 +524,7 @@ function adminListSettlements(token) {
 }
 
 function adminUpdateSettlements(token, ids, patch) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var d = clean_(patch, ['상태', '지급일', '금액', '비고']);
   if (d['상태'] === '지급완료' && !d['지급일']) d['지급일'] = today_();
   (ids || []).forEach(function (id) { update_('정산', id, d, s.email); });
@@ -512,7 +532,7 @@ function adminUpdateSettlements(token, ids, patch) {
 }
 
 function adminAddSettlement(token, f) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var d = clean_(f, ['사업장ID', '컨설턴트ID', '항목', '금액', '발생일', '비고']);
   req_(d, ['사업장ID', '컨설턴트ID', '항목', '금액']);
   d['상태'] = '미지급'; d['작성일'] = now_(); d['발생일'] = d['발생일'] || today_();
@@ -523,8 +543,8 @@ function adminAddSettlement(token, f) {
 /* ============================== 배정 추천 ============================== */
 
 function adminRecommend(token, appId) {
-  session_(token, 'admin');
-  var a = find_('신청', appId);
+  var s = session_(token, 'edit');
+  var a = scopeApp_(s, find_('신청', appId));
   if (!a) throw new Error('신청 없음');
   var region = a['사업장지역'] || region_(a['사업장주소']);
   var year = a['연도'], hrs = trainingHours_(), sm = surveyMap_().byConsultant;
@@ -674,7 +694,7 @@ function markNoticeRead(token, id) {
 }
 
 function adminSaveNotice(token, n, files, notify) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var d = clean_(n, ['구분', '제목', '내용', '대상', '고정', '게시일']);
   req_(d, ['제목']);
   d['구분'] = d['구분'] || '공지'; d['대상'] = d['대상'] || '전체'; d['게시일'] = d['게시일'] || now_(); d['작성자'] = s.email;
@@ -694,7 +714,7 @@ function adminSaveNotice(token, n, files, notify) {
 }
 
 function adminDeleteNotice(token, id) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   remove_('공지', id, s.email);
   return listNotices(token);
 }
@@ -724,7 +744,7 @@ function createInquiry(token, q, files) {
 }
 
 function adminAnswerInquiry(token, id, answer, status) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'edit');
   var q = find_('문의', id);
   if (!q) throw new Error('문의 없음');
   var st = OPTIONS.문의상태.indexOf(status) >= 0 ? status : '완료';

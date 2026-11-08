@@ -124,6 +124,8 @@ var DEFAULT_SETTINGS = [
   ['SMS_ON_VISIT', 'Y', '방문 일정 안내를 사업장 담당자에게 문자로도 발송(Y/N)'],
   ['DRIVE_ROOT_ID', '', '파일 저장 루트 폴더 ID (setup이 자동 생성)'],
   ['APP_URL', '', '웹앱 주소(배포 후 자동 기록)'],
+  ['ADMIN_ROLES', '', '관리자 권한 세분화(선택). 한 줄에 한 명: 이메일, 역할, 지역. 역할 = 총괄(기본)·지역(담당 지역 신청·사업장만 수정·검수)·검수(보고서·서류 검수만)·조회(보기만). 지역은 공백으로 구분(예: busan@ksa.or.kr, 지역, 부산 울산 경남). ADMIN_EMAILS에 있는 사람에게만 적용되고, 여기 없으면 총괄'],
+  ['LOG_KEEP_MONTHS', '3', '변경이력·메일이력 시트에 남길 개월 수. 더 오래된 행은 매일 점검 때 월별 보관 시트(보관_변경이력_yyyy-MM)로 옮김'],
   ['PUBLIC_URL', '', '외부에 안내할 주소(넷리파이 등, 예: https://ksa-consulting.netlify.app). 비우면 웹앱 주소 사용. 메일 링크·배포 링크에 쓰임']
 ];
 
@@ -139,6 +141,9 @@ function doGet(e) {
     tpl.token = String((e.parameter && e.parameter.t) || '').replace(/[^0-9a-f]/gi, '').slice(0, 64);
   } else {
     tpl = HtmlService.createTemplateFromFile('Index');
+    // 넷리파이 래퍼 출처: 로그인 토큰을 래퍼에 맡겨 iframe 저장소가 막혀도 로그인 유지
+    var po = String(setting_('PUBLIC_URL') || '').trim().match(/^https:\/\/[^\/?#\s]+/i);
+    tpl.parentOrigin = po ? po[0].toLowerCase() : '';
   }
   tpl.appName = setting_('APP_NAME') || '산업일자리전환 컨설팅 관리';
   return tpl.evaluate()
@@ -190,9 +195,12 @@ function headers_(name) {
   return sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
 }
 
-/** 시트 전체를 객체 배열로 읽음 (모든 값 문자열). _row = 시트 행번호 */
+/** 시트 전체를 객체 배열로 읽음 (모든 값 문자열). _row = 시트 행번호
+ *  1) 실행 단위 캐시 _cache → 2) 요청 간 캐시(CacheService, 시트 버전 키) → 3) 시트 읽기 */
 function all_(name) {
   if (_cache[name]) return _cache[name];
+  var shared = sharedGet_(name);
+  if (shared && shared.rows) { _cache[name] = shared.rows; return shared.rows; }
   var sh = sheet_(name);
   var lr = sh.getLastRow(), lc = sh.getLastColumn();
   var out = [];
@@ -207,7 +215,85 @@ function all_(name) {
     }
   }
   _cache[name] = out;
+  if (shared && shared.ver) sharedPut_(name, shared.ver, out);
   return out;
+}
+
+/* ---------- 요청 간 캐시 ----------
+ * 시트마다 버전 키 'v:시트'를 두고, 데이터는 'd:시트:버전:n' 조각으로 저장한다(값 하나 100KB 제한).
+ * 쓰기(insert_/update_/remove_)는 락 안에서 시트를 고친 뒤 버전을 바꾼다 → 옛 버전 데이터는 다시 읽히지 않는다.
+ * 락 안(쓰기 중)에서는 항상 시트를 직접 읽는다. 시트를 손으로 고치면 onEdit가 버전을 바꾼다.
+ * 행 삭제·정렬처럼 onEdit가 잡지 못하는 수동 변경은 SHEET_CACHE_SECONDS 뒤 반영(또는 메뉴 > 앱 캐시 비우기). */
+var SHEET_CACHE_SECONDS = 600;
+var CACHE_CHUNK = 30000;        // 조각당 문자 수 (한글 3바이트 기준 100KB 이내)
+var CACHE_MAX_CHUNKS = 100;     // 약 3MB 넘는 시트는 요청 간 캐시 안 함
+var NO_SHARED_CACHE = { '변경이력': 1, '메일이력': 1 };
+var _lockDepth = 0;
+
+function newVer_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
+
+/** 시트 버전. 없으면(만료) 락을 잡고 새로 만든다. 락을 못 잡으면 null → 이번엔 캐시 안 씀 */
+function dataVersion_(name) {
+  var cache = CacheService.getScriptCache(), k = 'v:' + name, v = cache.get(k);
+  if (v) return v;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(3000)) return null;
+  try {
+    v = cache.get(k);
+    if (!v) { v = newVer_(); cache.put(k, v, 21600); }
+    return v;
+  } finally { lock.releaseLock(); }
+}
+
+/** 시트 내용이 바뀌었음을 알림 (쓰기 후 락 안에서 호출) */
+function bumpVersion_(name) {
+  try { CacheService.getScriptCache().put('v:' + name, newVer_(), 21600); } catch (e) {}
+}
+
+/** 모든 시트의 요청 간 캐시 무효화 */
+function clearDataCache_() {
+  _cache = {};
+  Object.keys(SCHEMA).forEach(bumpVersion_);
+}
+
+function sharedGet_(name) {
+  if (_lockDepth > 0 || NO_SHARED_CACHE[name]) return null;
+  try {
+    var v = dataVersion_(name);
+    if (!v) return null;
+    var cache = CacheService.getScriptCache(), base = 'd:' + name + ':' + v;
+    var n = Number(cache.get(base) || 0);
+    if (!n) return { ver: v };
+    var keys = [];
+    for (var i = 0; i < n; i++) keys.push(base + ':' + i);
+    var got = cache.getAll(keys), parts = [];
+    for (i = 0; i < n; i++) {
+      if (got[keys[i]] === undefined || got[keys[i]] === null) return { ver: v };
+      parts.push(got[keys[i]]);
+    }
+    return { ver: v, rows: JSON.parse(parts.join('')) };
+  } catch (e) { return null; }
+}
+
+function sharedPut_(name, ver, rows) {
+  try {
+    var s = JSON.stringify(rows), o = {}, n = 0, base = 'd:' + name + ':' + ver;
+    for (var p = 0; p < s.length; n++) {
+      var e = Math.min(s.length, p + CACHE_CHUNK), c = s.charCodeAt(e - 1);
+      if (e < s.length && c >= 0xD800 && c <= 0xDBFF) e--;   // 이모지(서로게이트 쌍)를 자르지 않음
+      if (n >= CACHE_MAX_CHUNKS) return;
+      o[base + ':' + n] = s.slice(p, e);
+      p = e;
+    }
+    var cache = CacheService.getScriptCache();
+    cache.putAll(o, SHEET_CACHE_SECONDS);
+    cache.put(base, String(n), SHEET_CACHE_SECONDS);
+  } catch (e) {}
+}
+
+/** 시트를 직접 고쳤을 때(단순 트리거) 해당 시트 캐시 무효화 */
+function onEdit(e) {
+  try { bumpVersion_(e.range.getSheet().getName()); } catch (err) {}
 }
 
 function find_(name, id, key) {
@@ -238,7 +324,8 @@ function cell_(v) {
 function withLock_(fn) {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
-  try { return fn(); } finally { lock.releaseLock(); }
+  _lockDepth++;
+  try { return fn(); } finally { _lockDepth--; lock.releaseLock(); }
 }
 
 /** 여러 행 추가. objs: 객체 배열. ID 없으면 생성 */
@@ -260,6 +347,7 @@ function insertMany_(name, objs, user) {
     var start = sh.getLastRow() + 1;
     sh.getRange(start, 1, rows.length, h.length).setNumberFormat('@').setValues(rows);
     delete _cache[name];
+    bumpVersion_(name);
     if (user && objs.length <= 5) objs.forEach(function (o) { audit_(user, '추가', name, o.ID || '', '', '', ''); });
     return objs;
   });
@@ -285,6 +373,7 @@ function update_(name, id, patch, user, key) {
     var mi = h.indexOf('수정일');
     if (mi >= 0) vals[mi] = now_();
     sheet_(name).getRange(row._row, 1, 1, h.length).setNumberFormat('@').setValues([vals]);
+    bumpVersion_(name);
     if (user) changed.forEach(function (c) { audit_(user, '수정', name, id, c[0], c[1], c[2]); });
     delete _cache[name];
     var out = { _row: row._row };
@@ -300,6 +389,7 @@ function remove_(name, id, user) {
     if (!row) return false;
     sheet_(name).deleteRow(row._row);
     delete _cache[name];
+    bumpVersion_(name);
     if (user) audit_(user, '삭제', name, id, '', JSON.stringify(strip_(row)).slice(0, 1000), '');
     return true;
   });
@@ -472,10 +562,11 @@ function sendMail_(to, subject, body, kind, relId, opt) {
   if (!to) return false;
   var result = 'OK';
   try {
-    var q = MailApp.getRemainingDailyQuota();
-    if (q < 1) throw new Error('일일 메일 한도 초과');
+    // 한도는 메일 수가 아니라 받는 사람 수(to+cc)만큼 줄어든다
+    var q = MailApp.getRemainingDailyQuota(), need = recipientCount_(to, opt && opt.cc);
+    if (q < need) throw new Error('일일 메일 한도 초과 (남은 ' + q + '명, 필요 ' + need + '명)');
     // 로그인 코드용으로 마지막 MAIL_RESERVE건은 남겨 둠
-    if (kind !== '로그인' && q <= MAIL_RESERVE) throw new Error('보류: 남은 한도 ' + q + '건은 로그인 코드용');
+    if (kind !== '로그인' && q - need < MAIL_RESERVE) throw new Error('보류: 남은 한도 ' + q + '건 중 ' + MAIL_RESERVE + '건은 로그인 코드용');
     var html = String(body).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')
       .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>');
     var o = { to: to, subject: subject, htmlBody: '<div style="font-family:sans-serif;font-size:14px;line-height:1.6">' + html + '</div>', name: setting_('APP_NAME') || '산업일자리전환 컨설팅' };
@@ -486,6 +577,11 @@ function sendMail_(to, subject, body, kind, relId, opt) {
   } catch (e) { result = '실패: ' + e.message; }
   try { sheet_('메일이력').appendRow([now_(), to, subject, kind || '', relId || '', result]); } catch (e2) {}
   return result === 'OK';
+}
+
+/** 받는 사람 수 (쉼표·세미콜론 구분) */
+function recipientCount_(to, cc) {
+  return (String(to || '') + ',' + String(cc || '')).split(/[,;]/).filter(function (x) { return x.trim(); }).length;
 }
 
 function adminEmails_() {
@@ -508,8 +604,8 @@ function whoIs_(email) {
   email = String(email || '').trim().toLowerCase();
   if (!email) return null;
   if (adminEmails_().indexOf(email) >= 0) {
-    var c0 = consultantByEmail_(email);
-    return { email: email, role: 'admin', name: c0 ? c0['성명'] : '관리자', consultantId: c0 ? c0.ID : '' };
+    var c0 = consultantByEmail_(email), ar = adminRoleOf_(email);
+    return { email: email, role: 'admin', name: c0 ? c0['성명'] : '관리자', consultantId: c0 ? c0.ID : '', adminRole: ar.role, regions: ar.regions };
   }
   var c = consultantByEmail_(email);
   if (c && c['상태'] !== '제외' && c['상태'] !== '신청') return { email: email, role: 'consultant', name: c['성명'], consultantId: c.ID };
@@ -556,6 +652,7 @@ function verifyOtp(email, code) {
   var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
   var exp = Date.now() + SESSION_DAYS * 86400000;
   PropertiesService.getScriptProperties().setProperty('S_' + token, JSON.stringify({ email: email, exp: exp }));
+  pruneSessions_(email);
   audit_(email, '로그인', '', '', '', '', who.role);
   return { token: token, user: who };
 }
@@ -569,8 +666,9 @@ function logout(token) {
   return true;
 }
 
-/** 토큰 → 사용자. 권한은 매번(10분 캐시) 시트 기준으로 다시 판단 → 제외 처리 즉시 반영 */
-function session_(token, role) {
+/** 토큰 → 사용자. 권한은 매번(10분 캐시) 시트 기준으로 다시 판단 → 제외 처리 즉시 반영
+ *  need: 'admin'(모든 관리자) | 'edit' | 'review' | 'manage' (ADMIN_CAPS) */
+function session_(token, need) {
   if (!token || !/^[0-9a-f]{40}$/.test(token)) throw new Error('SESSION_EXPIRED');
   var cache = CacheService.getScriptCache();
   var raw = cache.get('who:' + token), s;
@@ -584,9 +682,80 @@ function session_(token, role) {
     if (!s) { logout(token); throw new Error('SESSION_EXPIRED'); }
     cache.put('who:' + token, JSON.stringify(s), 600);
   }
-  if (role === 'admin' && s.role !== 'admin') throw new Error('관리자 권한이 필요합니다.');
+  if (need) {
+    if (s.role !== 'admin') throw new Error('관리자 권한이 필요합니다.');
+    if (need !== 'admin' && !adminCan_(s, need)) throw new Error(CAP_LABEL[need] + ' 권한이 없습니다. (현재: ' + (s.adminRole || '총괄') + ')');
+  }
   return s;
 }
+
+/* ---------- 관리자 권한 세분화 ----------
+ * 총괄: 모든 기능 / 지역: 담당 지역 신청·사업장 수정·검수 / 검수: 보고서·서류 검수 / 조회: 보기만
+ * edit = 신청·사업장·일정·서류·메일 등 업무 처리, review = 보고서·서류 검수, manage = 설정·컨설턴트·교육·정산·공지·Lark */
+var ADMIN_CAPS = { '총괄': ['edit', 'review', 'manage'], '지역': ['edit', 'review'], '검수': ['review'], '조회': [] };
+var CAP_LABEL = { edit: '수정', review: '검수', manage: '총괄 관리' };
+
+function adminRoleOf_(email) {
+  var out = { role: '총괄', regions: [] };
+  String(setting_('ADMIN_ROLES') || '').split(/\r?\n/).some(function (line) {
+    var f = line.split(/[,\t]/).map(function (x) { return x.trim(); });
+    if (!f[0] || f[0].charAt(0) === '#' || f[0].toLowerCase() !== email) return false;
+    if (ADMIN_CAPS[f[1]]) out.role = f[1];
+    out.regions = String(f.slice(2).join(' ')).split(/[\s,\/]+/).map(function (r) { return region_(r) || r; }).filter(String);
+    return true;
+  });
+  return out;
+}
+
+function adminCan_(s, cap) {
+  return !!s && s.role === 'admin' && (ADMIN_CAPS[s.adminRole || '총괄'] || []).indexOf(cap) >= 0;
+}
+
+/** 지역 관리자면 담당 지역만 (그 외는 전부) */
+function regionLimited_(s) { return !!s && s.role === 'admin' && s.adminRole === '지역'; }
+function appRegion_(a) { return a ? (a['사업장지역'] || region_(a['사업장주소'])) : ''; }
+function projectRegion_(p) { return p && p['신청ID'] ? appRegion_(find_('신청', p['신청ID'])) : ''; }
+function inRegion_(s, region) { return !regionLimited_(s) || (s.regions || []).indexOf(region) >= 0; }
+function scopeApp_(s, a) { if (a && !inRegion_(s, appRegion_(a))) throw new Error('담당 지역의 신청이 아닙니다.'); return a; }
+function scopeProject_(s, p) { if (p && !inRegion_(s, projectRegion_(p))) throw new Error('담당 지역의 사업장이 아닙니다.'); return p; }
+function scopeProjectId_(s, id) { return scopeProject_(s, find_('사업장', id)); }
+
+/** 한 사람의 로그인 토큰은 최근 MAX_SESSIONS_PER_USER개(기기)만 유지 → 스크립트 속성(500KB) 보호 */
+var MAX_SESSIONS_PER_USER = 5;
+
+function pruneSessions_(email) {
+  var props = PropertiesService.getScriptProperties(), all = props.getProperties(), mine = [];
+  Object.keys(all).forEach(function (k) {
+    if (k.indexOf('S_') !== 0) return;
+    try { var t = JSON.parse(all[k]); if (t.email === email) mine.push({ k: k, exp: t.exp }); } catch (e) {}
+  });
+  mine.sort(function (a, b) { return b.exp - a.exp; });
+  mine.slice(MAX_SESSIONS_PER_USER).forEach(function (x) {
+    props.deleteProperty(x.k);
+    CacheService.getScriptCache().remove('who:' + x.k.slice(2));
+  });
+}
+
+/** 스크립트 속성 사용량(바이트, 한도 500KB)과 로그인 토큰 수 */
+function propsUsage_() {
+  var all = PropertiesService.getScriptProperties().getProperties(), bytes = 0, sessions = 0;
+  Object.keys(all).forEach(function (k) {
+    bytes += utf8Len_(k) + utf8Len_(all[k]);
+    if (k.indexOf('S_') === 0) sessions++;
+  });
+  return { bytes: bytes, sessions: sessions };
+}
+
+function utf8Len_(s) {
+  s = String(s); var n = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : (c >= 0xD800 && c <= 0xDBFF) ? (i++, 4) : 3;
+  }
+  return n;
+}
+
+var PROPS_WARN_BYTES = 400 * 1024;
 
 /** 만료된 로그인 토큰 정리 (dailyCheck에서 호출) */
 function cleanupSessions_() {
@@ -762,19 +931,19 @@ function adminBootstrap(token) {
   var s = session_(token, 'admin');
   return {
     me: s, options: options_(), appUrl: appUrl_(), fileRules: fileRules_(), maxMb: Number(setting_('MAX_FILE_MB') || 20),
-    apps: adminListApplications_(), projects: adminListProjects_(), consultants: adminListConsultants_(),
+    apps: adminListApplications_(s), projects: adminListProjects_(s), consultants: adminListConsultants_(),
     schedule: all_('차수일정').map(strip_), trainings: all_('교육').map(strip_),
     badges: adminBadges_(), sms: smsReady_()
   };
 }
 
-function adminListApplications_() {
-  return all_('신청').map(strip_);
+function adminListApplications_(s) {
+  return all_('신청').filter(function (a) { return inRegion_(s, appRegion_(a)); }).map(strip_);
 }
 
-function adminListProjects_() {
+function adminListProjects_(s) {
   var lc = logCounts_(), dm = docSummaryMap_(), sm = surveyMap_();
-  return all_('사업장').map(function (p) {
+  return all_('사업장').filter(function (p) { return inRegion_(s, projectRegion_(p)); }).map(function (p) {
     var o = enrichProject_(p);
     o['수행일지수'] = String(lc[p.ID] || 0);
     o._서류 = dm[p.ID] || docSummaryEmpty_();
@@ -801,9 +970,9 @@ function adminListConsultants_() {
 }
 
 function adminReload(token, what) {
-  session_(token, 'admin');
-  if (what === 'apps') return adminListApplications_();
-  if (what === 'projects') return adminListProjects_();
+  var s = session_(token, 'admin');
+  if (what === 'apps') return adminListApplications_(s);
+  if (what === 'projects') return adminListProjects_(s);
   if (what === 'consultants') return adminListConsultants_();
   if (what === 'schedule') return all_('차수일정').map(strip_);
   if (what === 'trainings') return all_('교육').map(strip_);
@@ -815,7 +984,8 @@ var EDIT_APP = ['구분', '연도', '사업장명', '사업자등록번호', '�
   '특이사항', '비고', '변동사항'];
 
 function adminUpdateApplication(token, id, patch) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'edit');
+  scopeApp_(s, find_('신청', id));
   var p = clean_(patch, EDIT_APP);
   if (p['사업장주소'] !== undefined && patch['사업장지역'] === undefined) p['사업장지역'] = region_(p['사업장주소']);
   var r = update_('신청', id, p, s.email);
@@ -826,8 +996,8 @@ function adminUpdateApplication(token, id, patch) {
 
 /** 신청 → 사업장 생성 (Lark '사업장관리추가' 버튼 대체) */
 function adminCreateProject(token, appId, opts) {
-  var s = session_(token, 'admin');
-  var a = find_('신청', appId);
+  var s = session_(token, 'edit');
+  var a = scopeApp_(s, find_('신청', appId));
   if (!a) throw new Error('신청을 찾을 수 없습니다.');
   if (a['사업장ID'] && find_('사업장', a['사업장ID'])) throw new Error('이미 사업장이 생성된 신청입니다.');
   if (!opts || !opts['차수']) throw new Error('차수를 선택해 주세요.');
@@ -847,7 +1017,8 @@ var EDIT_PROJECT = ['사업장명', '차수', '착수현황', '착수일', '종�
   '최종제출일', '사후기한', '사후검수', '사후제출일', '정책연계여부', '정책연계사업', '기타사업', '정책연계시기', '우수사례여부', '비고', '연도'];
 
 function adminUpdateProject(token, id, patch) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'edit');
+  scopeProjectId_(s, id);
   var p = clean_(patch, EDIT_PROJECT);
   if (patch['컨설턴트ID'] !== undefined) {
     var ids = Array.isArray(patch['컨설턴트ID']) ? patch['컨설턴트ID'].join(',') : String(patch['컨설턴트ID']);
@@ -863,7 +1034,7 @@ function adminUpdateProject(token, id, patch) {
 }
 
 function adminDeleteProject(token, id) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var p = find_('사업장', id);
   if (!p) return false;
   if (p['신청ID']) { try { update_('신청', p['신청ID'], { 사업장ID: '' }, s.email); } catch (e) {} }
@@ -871,8 +1042,8 @@ function adminDeleteProject(token, id) {
 }
 
 function adminSendKickoff(token, projectId) {
-  var s = session_(token, 'admin');
-  var p = find_('사업장', projectId);
+  var s = session_(token, 'edit');
+  var p = scopeProjectId_(s, projectId);
   if (!p) throw new Error('사업장 없음');
   var a = find_('신청', p['신청ID']) || {};
   var cons = splitIds_(p['컨설턴트ID']).map(function (id) { return find_('컨설턴트', id); }).filter(Boolean);
@@ -895,6 +1066,7 @@ function getProjectDetail(token, id) {
   var p = find_('사업장', id);
   if (!p) throw new Error('사업장 없음');
   if (s.role !== 'admin' && splitIds_(p['컨설턴트ID']).indexOf(s.consultantId) < 0) throw new Error('담당 사업장이 아닙니다.');
+  scopeProject_(s, p);
   var a = find_('신청', p['신청ID']);
   var logs = all_('수행일지').filter(function (l) { return l['사업장ID'] === id; }).map(strip_)
     .sort(function (x, y) { return Number(x['회차']) - Number(y['회차']); });
@@ -920,14 +1092,20 @@ function historyOf_(id) {
     .map(function (r) { return { 일시: r[0], 사용자: r[1], 작업: r[2], 필드: r[5], 이전값: r[6], 변경값: r[7] }; });
 }
 
-function adminHistory(token, id) { session_(token, 'admin'); return historyOf_(id); }
+function adminHistory(token, id) {
+  var s = session_(token, 'admin');
+  var p = find_('사업장', id), a = p ? null : find_('신청', id);
+  if (p) scopeProject_(s, p); else if (a) scopeApp_(s, a);
+  return historyOf_(id);
+}
 
 /** 보고서 검수 */
 function adminReviewSubmission(token, subId, result, comment, checklist) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'review');
   if (OPTIONS.검수결과.indexOf(result) < 0) throw new Error('검수 결과를 선택해 주세요.');
   var r = find_('보고서', subId);
   if (!r) throw new Error('제출 내역 없음');
+  scopeProjectId_(s, r['사업장ID']);
   var cl = Array.isArray(checklist) ? checklist.filter(function (x) { return x && x['항목']; }).map(function (x) {
     return { 항목: String(x['항목']), 결과: OPTIONS.체크결과.indexOf(x['결과']) >= 0 ? x['결과'] : '', 메모: String(x['메모'] || '') };
   }) : null;
@@ -956,7 +1134,7 @@ function adminReviewSubmission(token, subId, result, comment, checklist) {
 var EDIT_CONSULTANT = ['성명', '구분', '상태', '구매처코드', '연락처', '이메일', '주요활동지역', '보완요청', '평가', '개인별안내', '비고'];
 
 function adminSaveConsultant(token, id, patch) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var p = clean_(patch, EDIT_CONSULTANT);
   if (p['이메일']) {
     p['이메일'] = p['이메일'].toLowerCase();
@@ -989,7 +1167,7 @@ function getConsultantDetail(token, id) {
 }
 
 function adminSetTraining(token, consultantId, trainingId, hours, note) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var ex = all_('교육이수').filter(function (r) { return r['컨설턴트ID'] === consultantId && r['교육ID'] === trainingId; })[0];
   if (ex && !String(hours).trim()) remove_('교육이수', ex.ID, s.email);
   else if (ex) update_('교육이수', ex.ID, { 이수시간: hours, 비고: note || '' }, s.email);
@@ -997,16 +1175,8 @@ function adminSetTraining(token, consultantId, trainingId, hours, note) {
   return getConsultantDetail(token, consultantId);
 }
 
-function adminSaveTraining(token, t) {
-  var s = session_(token, 'admin');
-  var d = clean_(t, ['교육명', '일자', '시간', '비고']);
-  req_(d, ['교육명']);
-  if (t.ID) update_('교육', t.ID, d, s.email); else insert_('교육', d, s.email);
-  return all_('교육').map(strip_);
-}
-
 function adminSaveSchedule(token, row, applyToProjects) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   var d = clean_(row, SCHEMA['차수일정']);
   req_(d, ['차수']);
   if (find_('차수일정', d['차수'], '차수')) update_('차수일정', d['차수'], d, s.email, '차수');
@@ -1026,7 +1196,7 @@ function adminGetSettings(token) {
 }
 
 function adminSaveSettings(token, pairs) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'manage');
   Object.keys(pairs).forEach(function (k) {
     var r = find_('설정', k, '키');
     if (r && r['값'] !== pairs[k]) update_('설정', k, { 값: pairs[k] }, s.email, '키');
@@ -1045,9 +1215,10 @@ function adminMailLog(token) {
 
 /** 임의 메일 발송 (선택 컨설턴트/사업장 담당자에게) */
 function adminSendMail(token, toList, subject, body) {
-  var s = session_(token, 'admin');
+  var s = session_(token, 'edit');
   if (!toList || !toList.length) throw new Error('받는 사람이 없습니다.');
-  if (toList.length > MailApp.getRemainingDailyQuota()) throw new Error('오늘 남은 메일 발송 한도(' + MailApp.getRemainingDailyQuota() + '건)를 넘습니다.');
+  var room = MailApp.getRemainingDailyQuota() - MAIL_RESERVE;
+  if (toList.length > room) throw new Error('오늘 보낼 수 있는 메일은 ' + Math.max(0, room) + '건입니다(로그인 코드용 ' + MAIL_RESERVE + '건 제외). 받는 사람을 줄이거나 내일 보내 주세요.');
   var ok = 0;
   toList.forEach(function (t) {
     var vars = Object.assign({ 앱URL: appUrl_(), 기관명: setting_('ORG_NAME') }, t.vars || {});
@@ -1082,21 +1253,30 @@ function adminExportXlsx(token, title, headers, rows) {
 var FILE_FIELDS = { '신청': ['신청서', '사업자등록증', '중소기업확인서'], '사업장': ['장려금접수증', '우수사례첨부'], '컨설턴트': ['이력서'] };
 
 function adminAddFiles(token, sheetName, id, field, files) {
-  var s = session_(token, 'admin');
+  var s = session_(token, sheetName === '컨설턴트' ? 'manage' : 'edit');
   if ((FILE_FIELDS[sheetName] || []).indexOf(field) < 0) throw new Error('파일 필드가 아닙니다.');
-  var r = find_(sheetName, id);
+  var r = fileTarget_(s, sheetName, id);
   var saved = saveFiles_(filePath_(sheetName, r), files, field === '신청서' ? '신청서' : '');
   var patch = {}; patch[field] = parseFiles_(r[field]).concat(saved);
   return strip_(update_(sheetName, id, patch, s.email));
 }
 
 function adminRemoveFile(token, sheetName, id, field, fileId) {
-  var s = session_(token, 'admin');
+  var s = session_(token, sheetName === '컨설턴트' ? 'manage' : 'edit');
   if ((FILE_FIELDS[sheetName] || []).indexOf(field) < 0) throw new Error('파일 필드가 아닙니다.');
-  var r = find_(sheetName, id);
+  var r = fileTarget_(s, sheetName, id);
   var patch = {}; patch[field] = parseFiles_(r[field]).filter(function (f) { return f.id !== fileId; });
   try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) {}
   return strip_(update_(sheetName, id, patch, s.email));
+}
+
+/** 파일 필드 대상 행 (지역 관리자는 담당 지역만) */
+function fileTarget_(s, sheetName, id) {
+  var r = find_(sheetName, id);
+  if (!r) throw new Error('대상을 찾을 수 없습니다.');
+  if (sheetName === '신청') scopeApp_(s, r);
+  if (sheetName === '사업장') scopeProject_(s, r);
+  return r;
 }
 
 function filePath_(sheetName, r) {
@@ -1121,7 +1301,13 @@ function consultantBootstrap(token) {
 function ownProject_(s, projectId) {
   var p = find_('사업장', projectId);
   if (!p) throw new Error('사업장 없음');
-  if (s.role !== 'admin' && splitIds_(p['컨설턴트ID']).indexOf(s.consultantId) < 0) throw new Error('담당 사업장이 아닙니다.');
+  var mine = !!s.consultantId && splitIds_(p['컨설턴트ID']).indexOf(s.consultantId) >= 0;
+  if (s.role !== 'admin' && !mine) throw new Error('담당 사업장이 아닙니다.');
+  // 관리자는 (본인이 담당 컨설턴트가 아니면) 수정 권한 + 담당 지역 확인. ownProject_는 쓰기 작업에서만 쓴다
+  if (s.role === 'admin' && !mine) {
+    if (!adminCan_(s, 'edit')) throw new Error('수정 권한이 없습니다. (현재: ' + (s.adminRole || '총괄') + ')');
+    scopeProject_(s, p);
+  }
   return p;
 }
 
@@ -1206,7 +1392,7 @@ function updateMyProfile(token, patch, files) {
 
 function downloadFile(token, fileId) {
   var s = session_(token);
-  if (s.role !== 'admin' && allowedFileIds_(s).indexOf(fileId) < 0) throw new Error('파일 접근 권한이 없습니다.');
+  if ((s.role !== 'admin' || regionLimited_(s)) && allowedFileIds_(s).indexOf(fileId) < 0) throw new Error('파일 접근 권한이 없습니다.');
   var f = DriveApp.getFileById(fileId);
   if (f.getSize() > 40 * 1024 * 1024) return { url: f.getUrl(), name: f.getName(), tooLarge: true };
   var b = f.getBlob();
@@ -1216,7 +1402,15 @@ function downloadFile(token, fileId) {
 function allowedFileIds_(s) {
   var ids = [];
   var add = function (str) { parseFiles_(str).forEach(function (f) { ids.push(f.id); }); };
-  var mine = all_('사업장').filter(function (p) { return splitIds_(p['컨설턴트ID']).indexOf(s.consultantId) >= 0; });
+  if (regionLimited_(s)) {   // 지역 관리자: 담당 지역 신청·사업장 파일 + 컨설턴트 이력서 + 공지·문의
+    all_('신청').forEach(function (a) { if (inRegion_(s, appRegion_(a))) FILE_FIELDS['신청'].forEach(function (k) { add(a[k]); }); });
+    all_('컨설턴트').forEach(function (c) { add(c['이력서']); });
+    all_('공지').forEach(function (n) { add(n['첨부']); });
+    all_('문의').forEach(function (r) { add(r['첨부']); });
+  }
+  var mine = all_('사업장').filter(function (p) {
+    return regionLimited_(s) ? inRegion_(s, projectRegion_(p)) : splitIds_(p['컨설턴트ID']).indexOf(s.consultantId) >= 0;
+  });
   var pids = mine.map(function (p) { return p.ID; });
   mine.forEach(function (p) { add(p['장려금접수증']); add(p['우수사례첨부']); });
   all_('수행일지').forEach(function (l) { if (pids.indexOf(l['사업장ID']) >= 0) add(l['첨부']); });
@@ -1233,6 +1427,13 @@ function allowedFileIds_(s) {
 
 function dailyCheck() {
   try { cleanupSessions_(); } catch (e) {}
+  try {
+    var pu = propsUsage_();
+    if (pu.bytes > PROPS_WARN_BYTES) sendMail_(adminEmails_().join(','), '[점검] 스크립트 속성 사용량 ' + Math.round(pu.bytes / 1024) + 'KB / 500KB',
+      '스크립트 속성 사용량이 한도(500KB)에 가깝습니다. 한도를 넘으면 새 로그인이 실패합니다.\n로그인 토큰 ' + pu.sessions + '개\n\n' +
+      '[프로젝트 설정 > 스크립트 속성]에서 불필요한 항목을 확인해 주세요.', '점검', '');
+  } catch (e) { Logger.log('속성 점검 실패: ' + e.message); }
+  try { archiveLogs_(); } catch (e) { Logger.log('이력 보관 실패: ' + e.message); }
   var today = today_();
   var remind = String(setting_('REMIND_DAYS') || '7,3,0').split(',').map(function (x) { return Number(x.trim()); });
   var overdue = [], soon = [];
@@ -1277,6 +1478,48 @@ function dailyCheck() {
   }
 }
 
+/* ============================== 이력 시트 보관 ============================== */
+
+var LOG_SHEETS = ['변경이력', '메일이력'];
+var ARCHIVE_MAX_ROWS = 20000;   // 한 번에 옮기는 최대 행 수 (6분 제한 대비, 남으면 다음 날 이어서)
+
+/** LOG_KEEP_MONTHS개월(이번 달 포함)보다 오래된 이력 행을 월별 보관 시트로 옮김. 반환: {시트: 옮긴 행 수} */
+function archiveLogs_() {
+  var keep = Math.max(1, Math.floor(Number(setting_('LOG_KEEP_MONTHS'))) || 3);
+  var ym = today_().split('-'), y = Number(ym[0]), m = Number(ym[1]) - (keep - 1);
+  while (m < 1) { m += 12; y--; }
+  var cutoff = y + '-' + ('0' + m).slice(-2) + '-01', out = {};
+  LOG_SHEETS.forEach(function (name) {
+    out[name] = withLock_(function () {
+      var ss = ss_(), sh = sheet_(name), lr = sh.getLastRow();
+      if (lr < 2) return 0;
+      var lc = sh.getLastColumn(), head = sh.getRange(1, 1, 1, lc).getDisplayValues()[0];
+      var vals = sh.getRange(2, 1, Math.min(lr - 1, ARCHIVE_MAX_ROWS), lc).getDisplayValues();
+      var k = 0;
+      while (k < vals.length && String(vals[k][0]).slice(0, 10) < cutoff) k++;   // 시간순으로 쌓이므로 앞에서부터
+      if (!k) return 0;
+      var groups = {};
+      vals.slice(0, k).forEach(function (r) {
+        var g = /^\d{4}-\d{2}/.test(r[0]) ? String(r[0]).slice(0, 7) : '날짜없음';
+        (groups[g] = groups[g] || []).push(r);
+      });
+      Object.keys(groups).sort().forEach(function (g) {
+        var an = '보관_' + name + '_' + g, ash = ss.getSheetByName(an);
+        if (!ash) {
+          ash = ss.insertSheet(an);
+          ash.getRange(1, 1, 1, lc).setValues([head]).setFontWeight('bold');
+          ash.setFrozenRows(1);
+        }
+        var rows = groups[g];
+        ash.getRange(ash.getLastRow() + 1, 1, rows.length, lc).setNumberFormat('@').setValues(rows);
+      });
+      sh.deleteRows(2, k);
+      return k;
+    });
+  });
+  return out;
+}
+
 /* ============================== 설치 ============================== */
 
 function setup() {
@@ -1299,7 +1542,7 @@ function setup() {
   });
   var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('시트1');
   if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(def);
-  _cache = {};
+  clearDataCache_();
   var have = all_('설정').map(function (r) { return r['키']; });
   var add = DEFAULT_SETTINGS.filter(function (r) { return have.indexOf(r[0]) < 0; });
   if (add.length) insertMany_('설정', add.map(function (r) { return { 키: r[0], 값: r[1], 설명: r[2] }; }));
@@ -1328,5 +1571,11 @@ function onOpen() {
     .addItem('Lark 자동 동기화 끄기', 'disableLarkSync')
     .addSeparator()
     .addItem('기한 점검 지금 실행', 'dailyCheck')
+    .addItem('앱 캐시 비우기(시트를 직접 고친 뒤)', 'menuClearCache')
     .addToUi();
+}
+
+function menuClearCache() {
+  clearDataCache_();
+  try { SpreadsheetApp.getActiveSpreadsheet().toast('앱 캐시를 비웠습니다. 시트 내용이 바로 반영됩니다.'); } catch (e) {}
 }

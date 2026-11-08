@@ -5,7 +5,7 @@ const env = makeEnv({ quiet: true }); const G = env.ctx;
 G.setup();
 const st = JSON.parse(fs.readFileSync(__dirname + '/' + (process.env.STATE || 'state.json')));
 st.sheets.forEach(([n, data]) => { const sh = env.active.getSheetByName(n) || env.active.insertSheet(n); sh.data = data; });
-G._cache = {};
+G._cache = {}; G.clearDataCache_();
 const APP = path.join(__dirname, '../app');
 const shim = `<script>window.google={script:{run:(function mk(s,f){return new Proxy({},{get:function(_,k){
  if(k==='withSuccessHandler')return function(fn){return mk(fn,f)};if(k==='withFailureHandler')return function(fn){return mk(s,fn)};
@@ -30,5 +30,5 @@ http.createServer((req, res) => {
   if (u.pathname === '/otp') { const m = env.outbox.filter(x => /인증코드/.test(x.subject)).pop(); return res.end(m ? m.subject.match(/(\d{6})/)[1] : ''); }
   const page = u.searchParams.get('page') || '';
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.end(render(['apply', 'pre', 'consultant', 'status', 'survey'].includes(page) ? 'Form' : 'Index', { page, token: (u.searchParams.get('t') || ''), appName: '산업일자리전환 컨설팅 관리' }));
+  res.end(render(['apply', 'pre', 'consultant', 'status', 'survey'].includes(page) ? 'Form' : 'Index', { page, token: (u.searchParams.get('t') || ''), parentOrigin: process.env.PARENT_ORIGIN || 'http://localhost:8899', appName: '산업일자리전환 컨설팅 관리' }));
 }).listen(Number(process.env.PORT || 8787), () => console.log('ui on 8787'));
