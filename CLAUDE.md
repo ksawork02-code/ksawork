@@ -23,7 +23,7 @@
 - **시트 = 스키마**: 열을 추가하려면 `Code.gs`의 `SCHEMA`에 넣고 `setup()`을 다시 실행한다(누락 열만 뒤에 추가, 기존 데이터 보존). 1행 헤더 이름이 곧 필드 키(한글).
 - 모든 셀은 문자열(`@` 서식). 날짜는 `yyyy-MM-dd`, 일시는 `yyyy-MM-dd HH:mm:ss`(Asia/Seoul). 파일 필드는 `[{id,name,size,at,token?}]` JSON.
 - 새 ID는 `newId_(시트)` → `접두사+yyMMdd-6자리`. 접두사는 `ID_PREFIX`.
-- 쓰기는 반드시 `insert_/insertMany_/update_/remove_`로 한다(락 + 변경이력 + 캐시 무효화). `update_`는 바뀐 필드만 `변경이력`에 남긴다.
+- 쓰기는 반드시 `insert_/insertMany_/update_/remove_`로 한다(락 + 변경이력 + 캐시 무효화). 시트를 직접 고치는 코드는 끝에 `bumpVersion_(시트)`를 불러 요청 간 캐시를 무효화한다. `update_`는 바뀐 필드만 `변경이력`에 남긴다.
 - 서버 공개 함수(이름 끝에 `_` 없음)는 클라이언트에서 호출 가능하다 → 첫 줄에서 `session_(token[, 'admin'])`로 권한을 확인한다. 컨설턴트는 `ownProject_()`로 담당 사업장만 접근. 공개 페이지 함수(`submit*`, `getSurvey`, `lookupApplication`)는 입력 검증과 횟수 제한을 둔다.
 - 앱 전역 코드가 파일 간 순서에 의존하지 않게 한다(최상위에서 다른 파일의 변수 참조 금지, 함수 안에서만 참조).
 - 설정값은 시트 `설정`(키/값/설명)과 `DEFAULT_SETTINGS`. 비밀값(Lark App Secret, 솔라피 키, 로그인 토큰)은 **스크립트 속성**에만 둔다. 코드·문서·커밋에 비밀값을 넣지 않는다.
@@ -37,6 +37,7 @@ npm install                      # playwright, clasp
 npx playwright install chromium  # 최초 1회
 export LARK_APP_SECRET=...        # Lark 실데이터 이관 테스트에 필요 (커밋 금지)
 node test/test-ext.js            # 업로드 규칙 (Lark 불필요)
+node test/test-ops.js            # 요청 간 캐시·이력 보관·토큰 제한·메일 한도 (Lark 불필요)
 node test/test-server.js         # 실제 Lark → 이관 → 전체 업무 흐름. test/state.json 생성
 node test/test-sync.js           # 전환기간 동기화 (Lark 응답을 캐시해 변조)
 node test/test-features.js       # 세부 기능 13종. test/state2.json 생성 (state.json 필요)

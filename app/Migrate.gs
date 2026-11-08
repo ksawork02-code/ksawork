@@ -159,6 +159,7 @@ function migrateFiles_() {
         if (changed) sh.getRange(r._row, h.indexOf(field) + 1).setNumberFormat('@').setValue(JSON.stringify(files));
       });
     });
+    bumpVersion_(sheetName);
   });
   _cache = {};
   return left;

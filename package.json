@@ -4,7 +4,7 @@
   "private": true,
   "description": "산업일자리전환 컨설팅 관리 앱 (Google Apps Script) - 로컬 테스트 하네스",
   "scripts": {
-    "test": "node test/test-ext.js && node test/test-server.js && node test/test-sync.js && node test/test-features.js",
+    "test": "node test/test-ext.js && node test/test-ops.js && node test/test-server.js && node test/test-sync.js && node test/test-features.js",
     "test:quick": "node test/test-ext.js",
     "ui:server": "node test/ui-server.js",
     "ui:test": "node test/ui-test.js",

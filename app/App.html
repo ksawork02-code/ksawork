@@ -10,8 +10,10 @@ function chasuOrder(c) { return parseInt(c, 10) || 999; }
 
 /* ================= 시작 ================= */
 (function boot() {
-  if (!tok()) return showLogin();
-  call('me', tok()).then(function (u) { startRole(u); }, function () { setToken(''); showLogin(); });
+  restoreToken(function () {
+    if (!tok()) return showLogin();
+    call('me', tok()).then(function (u) { startRole(u); }, function () { setToken(''); showLogin(); });
+  });
 })();
 
 function startRole(u) {

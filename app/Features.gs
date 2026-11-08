@@ -483,6 +483,7 @@ function adminSaveFeeRules(token, rules) {
   if (lr > 1) sh.getRange(2, 1, lr - 1, h.length).setValues(new Array(lr - 1).fill(0).map(function () { return h.map(function () { return ''; }); }));
   if (rows.length) sh.getRange(2, 1, rows.length, h.length).setNumberFormat('@').setValues(rows);
   delete _cache['수당기준'];
+  bumpVersion_('수당기준');
   audit_(s.email, '수당기준 저장', '수당기준', '', '', '', rows.length + '개');
   return all_('수당기준').map(strip_).filter(function (r) { return r['항목']; });
 }

@@ -73,6 +73,26 @@
   f.referrerPolicy = 'no-referrer-when-downgrade';
   f.onload = function () { document.getElementById('loading').classList.add('hide'); };
   document.body.appendChild(f);
+
+  // 로그인 토큰 보관: 사파리 등은 iframe(제3자) 저장소를 막거나 지우므로 이 페이지(1st-party)에 맡긴다.
+  // 우리 iframe 안의 프레임이 보낸 메시지만 받는다(다른 창이 토큰을 빼 가지 못하게).
+  var KEY = 'ccm_token';
+  function fromOurFrame(w) {
+    for (var i = 0; w && i < 6; i++) { if (w === f.contentWindow) return true; if (w === w.parent) return false; w = w.parent; }
+    return false;
+  }
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object' || (d.ccm !== 'token' && d.ccm !== 'need')) return;
+    if (!e.source || !fromOurFrame(e.source)) return;
+    try {
+      if (d.ccm === 'token') {
+        if (/^[0-9a-f]{40}$/.test(d.t)) localStorage.setItem(KEY, d.t); else if (d.t === '') localStorage.removeItem(KEY);
+      } else {
+        e.source.postMessage({ ccm: 'token', t: localStorage.getItem(KEY) || '' }, e.origin);
+      }
+    } catch (err) { if (d.ccm === 'need') e.source.postMessage({ ccm: 'token', t: '' }, e.origin); }
+  });
   // 15초 안에 안 열리면 새 창 열기 안내
   setTimeout(function () { var s = document.getElementById('slow'); if (s) s.style.display = 'block'; }, 15000);
 

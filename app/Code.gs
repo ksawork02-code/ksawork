@@ -124,6 +124,7 @@ var DEFAULT_SETTINGS = [
   ['SMS_ON_VISIT', 'Y', '방문 일정 안내를 사업장 담당자에게 문자로도 발송(Y/N)'],
   ['DRIVE_ROOT_ID', '', '파일 저장 루트 폴더 ID (setup이 자동 생성)'],
   ['APP_URL', '', '웹앱 주소(배포 후 자동 기록)'],
+  ['LOG_KEEP_MONTHS', '3', '변경이력·메일이력 시트에 남길 개월 수. 더 오래된 행은 매일 점검 때 월별 보관 시트(보관_변경이력_yyyy-MM)로 옮김'],
   ['PUBLIC_URL', '', '외부에 안내할 주소(넷리파이 등, 예: https://ksa-consulting.netlify.app). 비우면 웹앱 주소 사용. 메일 링크·배포 링크에 쓰임']
 ];
 
@@ -139,6 +140,9 @@ function doGet(e) {
     tpl.token = String((e.parameter && e.parameter.t) || '').replace(/[^0-9a-f]/gi, '').slice(0, 64);
   } else {
     tpl = HtmlService.createTemplateFromFile('Index');
+    // 넷리파이 래퍼 출처: 로그인 토큰을 래퍼에 맡겨 iframe 저장소가 막혀도 로그인 유지
+    var po = String(setting_('PUBLIC_URL') || '').trim().match(/^https:\/\/[^\/?#\s]+/i);
+    tpl.parentOrigin = po ? po[0].toLowerCase() : '';
   }
   tpl.appName = setting_('APP_NAME') || '산업일자리전환 컨설팅 관리';
   return tpl.evaluate()
@@ -190,9 +194,12 @@ function headers_(name) {
   return sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
 }
 
-/** 시트 전체를 객체 배열로 읽음 (모든 값 문자열). _row = 시트 행번호 */
+/** 시트 전체를 객체 배열로 읽음 (모든 값 문자열). _row = 시트 행번호
+ *  1) 실행 단위 캐시 _cache → 2) 요청 간 캐시(CacheService, 시트 버전 키) → 3) 시트 읽기 */
 function all_(name) {
   if (_cache[name]) return _cache[name];
+  var shared = sharedGet_(name);
+  if (shared && shared.rows) { _cache[name] = shared.rows; return shared.rows; }
   var sh = sheet_(name);
   var lr = sh.getLastRow(), lc = sh.getLastColumn();
   var out = [];
@@ -207,7 +214,85 @@ function all_(name) {
     }
   }
   _cache[name] = out;
+  if (shared && shared.ver) sharedPut_(name, shared.ver, out);
   return out;
+}
+
+/* ---------- 요청 간 캐시 ----------
+ * 시트마다 버전 키 'v:시트'를 두고, 데이터는 'd:시트:버전:n' 조각으로 저장한다(값 하나 100KB 제한).
+ * 쓰기(insert_/update_/remove_)는 락 안에서 시트를 고친 뒤 버전을 바꾼다 → 옛 버전 데이터는 다시 읽히지 않는다.
+ * 락 안(쓰기 중)에서는 항상 시트를 직접 읽는다. 시트를 손으로 고치면 onEdit가 버전을 바꾼다.
+ * 행 삭제·정렬처럼 onEdit가 잡지 못하는 수동 변경은 SHEET_CACHE_SECONDS 뒤 반영(또는 메뉴 > 앱 캐시 비우기). */
+var SHEET_CACHE_SECONDS = 600;
+var CACHE_CHUNK = 30000;        // 조각당 문자 수 (한글 3바이트 기준 100KB 이내)
+var CACHE_MAX_CHUNKS = 100;     // 약 3MB 넘는 시트는 요청 간 캐시 안 함
+var NO_SHARED_CACHE = { '변경이력': 1, '메일이력': 1 };
+var _lockDepth = 0;
+
+function newVer_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
+
+/** 시트 버전. 없으면(만료) 락을 잡고 새로 만든다. 락을 못 잡으면 null → 이번엔 캐시 안 씀 */
+function dataVersion_(name) {
+  var cache = CacheService.getScriptCache(), k = 'v:' + name, v = cache.get(k);
+  if (v) return v;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(3000)) return null;
+  try {
+    v = cache.get(k);
+    if (!v) { v = newVer_(); cache.put(k, v, 21600); }
+    return v;
+  } finally { lock.releaseLock(); }
+}
+
+/** 시트 내용이 바뀌었음을 알림 (쓰기 후 락 안에서 호출) */
+function bumpVersion_(name) {
+  try { CacheService.getScriptCache().put('v:' + name, newVer_(), 21600); } catch (e) {}
+}
+
+/** 모든 시트의 요청 간 캐시 무효화 */
+function clearDataCache_() {
+  _cache = {};
+  Object.keys(SCHEMA).forEach(bumpVersion_);
+}
+
+function sharedGet_(name) {
+  if (_lockDepth > 0 || NO_SHARED_CACHE[name]) return null;
+  try {
+    var v = dataVersion_(name);
+    if (!v) return null;
+    var cache = CacheService.getScriptCache(), base = 'd:' + name + ':' + v;
+    var n = Number(cache.get(base) || 0);
+    if (!n) return { ver: v };
+    var keys = [];
+    for (var i = 0; i < n; i++) keys.push(base + ':' + i);
+    var got = cache.getAll(keys), parts = [];
+    for (i = 0; i < n; i++) {
+      if (got[keys[i]] === undefined || got[keys[i]] === null) return { ver: v };
+      parts.push(got[keys[i]]);
+    }
+    return { ver: v, rows: JSON.parse(parts.join('')) };
+  } catch (e) { return null; }
+}
+
+function sharedPut_(name, ver, rows) {
+  try {
+    var s = JSON.stringify(rows), o = {}, n = 0, base = 'd:' + name + ':' + ver;
+    for (var p = 0; p < s.length; n++) {
+      var e = Math.min(s.length, p + CACHE_CHUNK), c = s.charCodeAt(e - 1);
+      if (e < s.length && c >= 0xD800 && c <= 0xDBFF) e--;   // 이모지(서로게이트 쌍)를 자르지 않음
+      if (n >= CACHE_MAX_CHUNKS) return;
+      o[base + ':' + n] = s.slice(p, e);
+      p = e;
+    }
+    var cache = CacheService.getScriptCache();
+    cache.putAll(o, SHEET_CACHE_SECONDS);
+    cache.put(base, String(n), SHEET_CACHE_SECONDS);
+  } catch (e) {}
+}
+
+/** 시트를 직접 고쳤을 때(단순 트리거) 해당 시트 캐시 무효화 */
+function onEdit(e) {
+  try { bumpVersion_(e.range.getSheet().getName()); } catch (err) {}
 }
 
 function find_(name, id, key) {
@@ -238,7 +323,8 @@ function cell_(v) {
 function withLock_(fn) {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
-  try { return fn(); } finally { lock.releaseLock(); }
+  _lockDepth++;
+  try { return fn(); } finally { _lockDepth--; lock.releaseLock(); }
 }
 
 /** 여러 행 추가. objs: 객체 배열. ID 없으면 생성 */
@@ -260,6 +346,7 @@ function insertMany_(name, objs, user) {
     var start = sh.getLastRow() + 1;
     sh.getRange(start, 1, rows.length, h.length).setNumberFormat('@').setValues(rows);
     delete _cache[name];
+    bumpVersion_(name);
     if (user && objs.length <= 5) objs.forEach(function (o) { audit_(user, '추가', name, o.ID || '', '', '', ''); });
     return objs;
   });
@@ -285,6 +372,7 @@ function update_(name, id, patch, user, key) {
     var mi = h.indexOf('수정일');
     if (mi >= 0) vals[mi] = now_();
     sheet_(name).getRange(row._row, 1, 1, h.length).setNumberFormat('@').setValues([vals]);
+    bumpVersion_(name);
     if (user) changed.forEach(function (c) { audit_(user, '수정', name, id, c[0], c[1], c[2]); });
     delete _cache[name];
     var out = { _row: row._row };
@@ -300,6 +388,7 @@ function remove_(name, id, user) {
     if (!row) return false;
     sheet_(name).deleteRow(row._row);
     delete _cache[name];
+    bumpVersion_(name);
     if (user) audit_(user, '삭제', name, id, '', JSON.stringify(strip_(row)).slice(0, 1000), '');
     return true;
   });
@@ -472,10 +561,11 @@ function sendMail_(to, subject, body, kind, relId, opt) {
   if (!to) return false;
   var result = 'OK';
   try {
-    var q = MailApp.getRemainingDailyQuota();
-    if (q < 1) throw new Error('일일 메일 한도 초과');
+    // 한도는 메일 수가 아니라 받는 사람 수(to+cc)만큼 줄어든다
+    var q = MailApp.getRemainingDailyQuota(), need = recipientCount_(to, opt && opt.cc);
+    if (q < need) throw new Error('일일 메일 한도 초과 (남은 ' + q + '명, 필요 ' + need + '명)');
     // 로그인 코드용으로 마지막 MAIL_RESERVE건은 남겨 둠
-    if (kind !== '로그인' && q <= MAIL_RESERVE) throw new Error('보류: 남은 한도 ' + q + '건은 로그인 코드용');
+    if (kind !== '로그인' && q - need < MAIL_RESERVE) throw new Error('보류: 남은 한도 ' + q + '건 중 ' + MAIL_RESERVE + '건은 로그인 코드용');
     var html = String(body).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')
       .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>');
     var o = { to: to, subject: subject, htmlBody: '<div style="font-family:sans-serif;font-size:14px;line-height:1.6">' + html + '</div>', name: setting_('APP_NAME') || '산업일자리전환 컨설팅' };
@@ -486,6 +576,11 @@ function sendMail_(to, subject, body, kind, relId, opt) {
   } catch (e) { result = '실패: ' + e.message; }
   try { sheet_('메일이력').appendRow([now_(), to, subject, kind || '', relId || '', result]); } catch (e2) {}
   return result === 'OK';
+}
+
+/** 받는 사람 수 (쉼표·세미콜론 구분) */
+function recipientCount_(to, cc) {
+  return (String(to || '') + ',' + String(cc || '')).split(/[,;]/).filter(function (x) { return x.trim(); }).length;
 }
 
 function adminEmails_() {
@@ -556,6 +651,7 @@ function verifyOtp(email, code) {
   var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
   var exp = Date.now() + SESSION_DAYS * 86400000;
   PropertiesService.getScriptProperties().setProperty('S_' + token, JSON.stringify({ email: email, exp: exp }));
+  pruneSessions_(email);
   audit_(email, '로그인', '', '', '', '', who.role);
   return { token: token, user: who };
 }
@@ -587,6 +683,43 @@ function session_(token, role) {
   if (role === 'admin' && s.role !== 'admin') throw new Error('관리자 권한이 필요합니다.');
   return s;
 }
+
+/** 한 사람의 로그인 토큰은 최근 MAX_SESSIONS_PER_USER개(기기)만 유지 → 스크립트 속성(500KB) 보호 */
+var MAX_SESSIONS_PER_USER = 5;
+
+function pruneSessions_(email) {
+  var props = PropertiesService.getScriptProperties(), all = props.getProperties(), mine = [];
+  Object.keys(all).forEach(function (k) {
+    if (k.indexOf('S_') !== 0) return;
+    try { var t = JSON.parse(all[k]); if (t.email === email) mine.push({ k: k, exp: t.exp }); } catch (e) {}
+  });
+  mine.sort(function (a, b) { return b.exp - a.exp; });
+  mine.slice(MAX_SESSIONS_PER_USER).forEach(function (x) {
+    props.deleteProperty(x.k);
+    CacheService.getScriptCache().remove('who:' + x.k.slice(2));
+  });
+}
+
+/** 스크립트 속성 사용량(바이트, 한도 500KB)과 로그인 토큰 수 */
+function propsUsage_() {
+  var all = PropertiesService.getScriptProperties().getProperties(), bytes = 0, sessions = 0;
+  Object.keys(all).forEach(function (k) {
+    bytes += utf8Len_(k) + utf8Len_(all[k]);
+    if (k.indexOf('S_') === 0) sessions++;
+  });
+  return { bytes: bytes, sessions: sessions };
+}
+
+function utf8Len_(s) {
+  s = String(s); var n = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : (c >= 0xD800 && c <= 0xDBFF) ? (i++, 4) : 3;
+  }
+  return n;
+}
+
+var PROPS_WARN_BYTES = 400 * 1024;
 
 /** 만료된 로그인 토큰 정리 (dailyCheck에서 호출) */
 function cleanupSessions_() {
@@ -1047,7 +1180,8 @@ function adminMailLog(token) {
 function adminSendMail(token, toList, subject, body) {
   var s = session_(token, 'admin');
   if (!toList || !toList.length) throw new Error('받는 사람이 없습니다.');
-  if (toList.length > MailApp.getRemainingDailyQuota()) throw new Error('오늘 남은 메일 발송 한도(' + MailApp.getRemainingDailyQuota() + '건)를 넘습니다.');
+  var room = MailApp.getRemainingDailyQuota() - MAIL_RESERVE;
+  if (toList.length > room) throw new Error('오늘 보낼 수 있는 메일은 ' + Math.max(0, room) + '건입니다(로그인 코드용 ' + MAIL_RESERVE + '건 제외). 받는 사람을 줄이거나 내일 보내 주세요.');
   var ok = 0;
   toList.forEach(function (t) {
     var vars = Object.assign({ 앱URL: appUrl_(), 기관명: setting_('ORG_NAME') }, t.vars || {});
@@ -1233,6 +1367,13 @@ function allowedFileIds_(s) {
 
 function dailyCheck() {
   try { cleanupSessions_(); } catch (e) {}
+  try {
+    var pu = propsUsage_();
+    if (pu.bytes > PROPS_WARN_BYTES) sendMail_(adminEmails_().join(','), '[점검] 스크립트 속성 사용량 ' + Math.round(pu.bytes / 1024) + 'KB / 500KB',
+      '스크립트 속성 사용량이 한도(500KB)에 가깝습니다. 한도를 넘으면 새 로그인이 실패합니다.\n로그인 토큰 ' + pu.sessions + '개\n\n' +
+      '[프로젝트 설정 > 스크립트 속성]에서 불필요한 항목을 확인해 주세요.', '점검', '');
+  } catch (e) { Logger.log('속성 점검 실패: ' + e.message); }
+  try { archiveLogs_(); } catch (e) { Logger.log('이력 보관 실패: ' + e.message); }
   var today = today_();
   var remind = String(setting_('REMIND_DAYS') || '7,3,0').split(',').map(function (x) { return Number(x.trim()); });
   var overdue = [], soon = [];
@@ -1277,6 +1418,48 @@ function dailyCheck() {
   }
 }
 
+/* ============================== 이력 시트 보관 ============================== */
+
+var LOG_SHEETS = ['변경이력', '메일이력'];
+var ARCHIVE_MAX_ROWS = 20000;   // 한 번에 옮기는 최대 행 수 (6분 제한 대비, 남으면 다음 날 이어서)
+
+/** LOG_KEEP_MONTHS개월(이번 달 포함)보다 오래된 이력 행을 월별 보관 시트로 옮김. 반환: {시트: 옮긴 행 수} */
+function archiveLogs_() {
+  var keep = Math.max(1, Math.floor(Number(setting_('LOG_KEEP_MONTHS'))) || 3);
+  var ym = today_().split('-'), y = Number(ym[0]), m = Number(ym[1]) - (keep - 1);
+  while (m < 1) { m += 12; y--; }
+  var cutoff = y + '-' + ('0' + m).slice(-2) + '-01', out = {};
+  LOG_SHEETS.forEach(function (name) {
+    out[name] = withLock_(function () {
+      var ss = ss_(), sh = sheet_(name), lr = sh.getLastRow();
+      if (lr < 2) return 0;
+      var lc = sh.getLastColumn(), head = sh.getRange(1, 1, 1, lc).getDisplayValues()[0];
+      var vals = sh.getRange(2, 1, Math.min(lr - 1, ARCHIVE_MAX_ROWS), lc).getDisplayValues();
+      var k = 0;
+      while (k < vals.length && String(vals[k][0]).slice(0, 10) < cutoff) k++;   // 시간순으로 쌓이므로 앞에서부터
+      if (!k) return 0;
+      var groups = {};
+      vals.slice(0, k).forEach(function (r) {
+        var g = /^\d{4}-\d{2}/.test(r[0]) ? String(r[0]).slice(0, 7) : '날짜없음';
+        (groups[g] = groups[g] || []).push(r);
+      });
+      Object.keys(groups).sort().forEach(function (g) {
+        var an = '보관_' + name + '_' + g, ash = ss.getSheetByName(an);
+        if (!ash) {
+          ash = ss.insertSheet(an);
+          ash.getRange(1, 1, 1, lc).setValues([head]).setFontWeight('bold');
+          ash.setFrozenRows(1);
+        }
+        var rows = groups[g];
+        ash.getRange(ash.getLastRow() + 1, 1, rows.length, lc).setNumberFormat('@').setValues(rows);
+      });
+      sh.deleteRows(2, k);
+      return k;
+    });
+  });
+  return out;
+}
+
 /* ============================== 설치 ============================== */
 
 function setup() {
@@ -1299,7 +1482,7 @@ function setup() {
   });
   var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('시트1');
   if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(def);
-  _cache = {};
+  clearDataCache_();
   var have = all_('설정').map(function (r) { return r['키']; });
   var add = DEFAULT_SETTINGS.filter(function (r) { return have.indexOf(r[0]) < 0; });
   if (add.length) insertMany_('설정', add.map(function (r) { return { 키: r[0], 값: r[1], 설명: r[2] }; }));
@@ -1328,5 +1511,11 @@ function onOpen() {
     .addItem('Lark 자동 동기화 끄기', 'disableLarkSync')
     .addSeparator()
     .addItem('기한 점검 지금 실행', 'dailyCheck')
+    .addItem('앱 캐시 비우기(시트를 직접 고친 뒤)', 'menuClearCache')
     .addToUi();
+}
+
+function menuClearCache() {
+  clearDataCache_();
+  try { SpreadsheetApp.getActiveSpreadsheet().toast('앱 캐시를 비웠습니다. 시트 내용이 바로 반영됩니다.'); } catch (e) {}
 }

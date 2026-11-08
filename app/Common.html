@@ -1,8 +1,33 @@
 <script>
 /* 공통 클라이언트 유틸 */
 var TOKEN_KEY = 'ccm_token';
-function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return window._tok || ''; } }
-function setToken(t) { window._tok = t; try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+function getToken() { try { return localStorage.getItem(TOKEN_KEY) || window._tok || ''; } catch (e) { return window._tok || ''; } }
+function setToken(t) {
+  window._tok = t;
+  try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+  tellParent({ ccm: 'token', t: t || '' });
+}
+
+/* 넷리파이 래퍼(iframe) 안에서는 사파리 등이 이 프레임의 저장소를 막거나 지움 →
+   래퍼(1st-party 주소)에 토큰을 맡기고, 시작할 때 돌려받는다. PARENT_ORIGIN = 설정 PUBLIC_URL의 출처 */
+var PARENT_ORIGIN = (document.body && document.body.getAttribute('data-po')) || '';
+function inWrapper() { try { return !!PARENT_ORIGIN && window.top !== window.self; } catch (e) { return false; } }
+function tellParent(msg) { if (!inWrapper()) return; try { window.top.postMessage(msg, PARENT_ORIGIN); } catch (e) {} }
+/** 저장된 토큰이 없으면 래퍼에 물어본 뒤 cb 호출 (최대 1.2초 대기) */
+function restoreToken(cb) {
+  if (getToken() || !inWrapper()) return cb();
+  var done = false;
+  var finish = function () { if (done) return; done = true; window.removeEventListener('message', onMsg); cb(); };
+  var onMsg = function (e) {
+    if (e.origin !== PARENT_ORIGIN || !e.data || e.data.ccm !== 'token') return;
+    var t = String(e.data.t || '');
+    if (/^[0-9a-f]{40}$/.test(t)) { window._tok = t; try { localStorage.setItem(TOKEN_KEY, t); } catch (x) {} }
+    finish();
+  };
+  window.addEventListener('message', onMsg);
+  tellParent({ ccm: 'need' });
+  setTimeout(finish, 1200);
+}
 
 /** 서버 함수 호출 → Promise */
 function call(fn) {
